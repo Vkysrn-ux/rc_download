@@ -33,6 +33,13 @@ function DownloadPageContent() {
     setLoading(true)
 
     const regNumber = registrationNumber.toUpperCase().replace(/\s/g, "")
+
+    if (isAuthenticated && user && user.walletBalance < price) {
+      setLoading(false)
+      router.push(`/payment/confirm?registration=${encodeURIComponent(regNumber)}&source=upi`)
+      return
+    }
+
     const res = await fetch("/api/rc/lookup", {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -5,9 +5,8 @@ import { AuthProvider } from "@/lib/auth-context"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "RC Download Service - Vehicle Registration Certificate",
-  description: "Download your vehicle RC documents instantly. Fast, secure, and affordable.",
-  generator: "v0.app",
+  title: "VehicleRCDownload.com - Vehicle RC & Official Documents",
+  description: "Download your vehicle RC and other official documents instantly. Fast, secure, and affordable.",
   icons: {
     icon: [
       {

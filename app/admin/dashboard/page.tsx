@@ -6,38 +6,30 @@ import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { FileText, LogOut, Users, DollarSign, Activity, TrendingUp, Download, CreditCard } from "lucide-react"
-
-interface User {
-  id: string
-  email: string
-  name: string
-  walletBalance: number
-  role: string
-}
+import { FileText, LogOut, Users, DollarSign, Activity, TrendingUp, Download, CreditCard, Cloud, RefreshCcw, BarChart3 } from "lucide-react"
 
 interface Transaction {
   id: string
-  userId: string
-  type: string
+  type: "recharge" | "download"
   amount: number
   status: string
   timestamp: string
   description: string
-  paymentMethod?: string
-  registrationNumber?: string
 }
 
 export default function AdminDashboardPage() {
   const router = useRouter()
   const { user, isAuthenticated, logout } = useAuth()
-  const [allUsers, setAllUsers] = useState<User[]>([])
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
     totalRevenue: 0,
     totalDownloads: 0,
+    surepassHits: 0,
+    cacheReused: 0,
   })
 
   useEffect(() => {
@@ -54,26 +46,20 @@ export default function AdminDashboardPage() {
     loadAdminData()
   }, [isAuthenticated, user, router])
 
-  const loadAdminData = () => {
-    const users = JSON.parse(localStorage.getItem("rc_app_users") || "[]")
-    const transactions = JSON.parse(localStorage.getItem("rc_app_transactions") || "[]")
+  const loadAdminData = async () => {
+    setLoading(true)
+    setError("")
+    const res = await fetch("/api/admin/summary")
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setError(json?.error || "Failed to load dashboard data")
+      setLoading(false)
+      return
+    }
 
-    setAllUsers(users)
-    setAllTransactions(transactions)
-
-    // Calculate stats
-    const activeUsers = users.filter((u: User) => u.walletBalance > 0).length
-    const totalRevenue = transactions
-      .filter((t: Transaction) => t.type === "recharge" && t.status === "completed")
-      .reduce((sum: number, t: Transaction) => sum + t.amount, 0)
-    const totalDownloads = transactions.filter((t: Transaction) => t.type === "download").length
-
-    setStats({
-      totalUsers: users.length,
-      activeUsers,
-      totalRevenue,
-      totalDownloads,
-    })
+    setStats(json?.stats || { totalUsers: 0, activeUsers: 0, totalRevenue: 0, totalDownloads: 0 })
+    setRecentTransactions(json?.recentTransactions || [])
+    setLoading(false)
   }
 
   const handleLogout = () => {
@@ -95,7 +81,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <div className="text-lg font-bold text-foreground">Admin Dashboard</div>
-              <div className="text-xs text-muted-foreground">RC Download Portal Management</div>
+              <div className="text-xs text-muted-foreground">VehicleRCDownload.com Management</div>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -120,6 +106,8 @@ export default function AdminDashboardPage() {
             <h1 className="text-4xl font-bold mb-2">Admin Dashboard</h1>
             <p className="text-lg text-muted-foreground">Monitor system activity and manage users</p>
           </div>
+
+          {error && <div className="text-sm text-destructive">{error}</div>}
 
           {/* Stats Cards */}
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -174,6 +162,32 @@ export default function AdminDashboardPage() {
                 <p className="text-xs text-muted-foreground mt-1">RC documents</p>
               </CardContent>
             </Card>
+
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Surepass Hits</CardTitle>
+                  <Cloud className="h-5 w-5 text-sky-600" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{stats.surepassHits}</div>
+                <p className="text-xs text-muted-foreground mt-1">External RC lookups</p>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Cache Reused</CardTitle>
+                  <RefreshCcw className="h-5 w-5 text-emerald-600" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{stats.cacheReused}</div>
+                <p className="text-xs text-muted-foreground mt-1">Served from DB cache</p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Quick Actions */}
@@ -189,6 +203,14 @@ export default function AdminDashboardPage() {
                 <Button className="w-full justify-start h-12 text-base" onClick={() => router.push("/admin/users")}>
                   <Users className="h-5 w-5 mr-3" />
                   Manage Users
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-12 text-base bg-transparent"
+                  onClick={() => router.push("/admin/api-usage")}
+                >
+                  <BarChart3 className="h-5 w-5 mr-3" />
+                  API Usage
                 </Button>
                 <Button
                   variant="outline"
@@ -218,7 +240,10 @@ export default function AdminDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {allTransactions
+                  {loading && recentTransactions.length === 0 && (
+                    <div className="text-sm text-muted-foreground">Loading…</div>
+                  )}
+                  {recentTransactions
                     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                     .slice(0, 5)
                     .map((txn) => (

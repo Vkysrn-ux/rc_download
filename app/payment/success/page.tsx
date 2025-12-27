@@ -17,6 +17,7 @@ function PaymentSuccessContent() {
   const searchParams = useSearchParams()
   const { isAuthenticated } = useAuth()
   const registration = searchParams.get("registration") || ""
+  const transactionId = searchParams.get("transactionId") || ""
   const [downloading, setDownloading] = useState(false)
   const [downloadType, setDownloadType] = useState<"image" | "pdf" | null>(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -35,7 +36,9 @@ function PaymentSuccessContent() {
     async function run() {
       if (!registration) return
       setRcError("")
-      const res = await fetch(`/api/rc/lookup?registrationNumber=${encodeURIComponent(registration)}`)
+      const res = transactionId
+        ? await fetch(`/api/rc/view?transactionId=${encodeURIComponent(transactionId)}`)
+        : await fetch(`/api/rc/lookup?registrationNumber=${encodeURIComponent(registration)}`)
       const json = await res.json().catch(() => ({}))
       if (cancelled) return
       if (!res.ok) {

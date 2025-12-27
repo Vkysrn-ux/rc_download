@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     amountRupees = isGuest ? 30 : 20
     type = "download"
     registrationNumber = normalizeRegistration(parsed.data.registrationNumber)
-    description = `RC Download - ${registrationNumber}`
+    description = `Vehicle RC Download - ${registrationNumber}`
     userId = user?.id ?? null
   } else {
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Amount too low" }, { status: 400 })
   }
 
-  const payeeName = process.env.PAYMENT_PAYEE_NAME || "RC Download"
+  const payeeName = process.env.PAYMENT_PAYEE_NAME || "Vehicle RC Download"
   let order: { id: string; amount: number; currency: string; status: string }
   try {
     order = await razorpayFetch<{ id: string; amount: number; currency: string; status: string }>(`/orders`, {

@@ -13,9 +13,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.push("/login")
+      router.replace("/login")
+      return
     }
-  }, [isAuthenticated, router])
+
+    if (user?.role === "admin") {
+      router.replace("/admin/dashboard")
+    }
+  }, [isAuthenticated, user?.role, router])
 
   if (!isAuthenticated || !user) {
     return null
@@ -26,10 +31,7 @@ export default function DashboardPage() {
     router.push("/")
   }
 
-  if (user.role === "admin") {
-    router.push("/admin/dashboard")
-    return null
-  }
+  if (user.role === "admin") return null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-blue-50/30 to-background">
@@ -40,8 +42,8 @@ export default function DashboardPage() {
               <FileText className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <div className="text-lg font-bold text-foreground">RC Download Portal</div>
-              <div className="text-xs text-muted-foreground">Ministry of Road Transport</div>
+              <div className="text-lg font-bold text-foreground">VehicleRCDownload.com</div>
+              <div className="text-xs text-muted-foreground">Docx Solutions</div>
             </div>
           </div>
           <div className="flex items-center gap-4">

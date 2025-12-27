@@ -24,7 +24,7 @@ function clampUpiText(value: string, maxLength: number) {
 function buildUpiUri(upiId: string, payeeName: string, amount: number, note: string) {
   const params = new URLSearchParams({
     pa: upiId,
-    pn: clampUpiText(payeeName || "RC Download", 25),
+    pn: clampUpiText(payeeName || "Vehicle RC Download", 25),
     am: amount.toFixed(2),
     cu: "INR",
     tn: clampUpiText(note, 50),
@@ -72,7 +72,7 @@ function PaymentConfirmContent() {
 
   const upiUri = useMemo(() => {
     if (!config?.upiId) return ""
-    return buildUpiUri(config.upiId, config.payeeName, price, `RC Download ${registration}`)
+    return buildUpiUri(config.upiId, config.payeeName, price, `Vehicle RC Download ${registration}`)
   }, [config?.upiId, config?.payeeName, price, registration])
 
   useEffect(() => {
@@ -119,7 +119,9 @@ function PaymentConfirmContent() {
 
       setSuccess(true)
       setTimeout(() => {
-        router.push(`/payment/success?registration=${encodeURIComponent(registration)}`)
+        router.push(
+          `/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`,
+        )
       }, 1200)
     } catch {
       setError("Payment failed. Please try again.")
@@ -152,7 +154,9 @@ function PaymentConfirmContent() {
 
       setSuccess(true)
       setTimeout(() => {
-        router.push(`/payment/success?registration=${encodeURIComponent(registration)}`)
+        router.push(
+          `/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`,
+        )
       }, 1200)
     } catch {
       setError("Payment failed. Please try again.")
@@ -211,7 +215,9 @@ function PaymentConfirmContent() {
             await refreshUser()
             setSuccess(true)
             setTimeout(() => {
-              router.push(`/payment/success?registration=${encodeURIComponent(registration)}`)
+              router.push(
+                `/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`,
+              )
             }, 1200)
           } catch {
             setError("Payment verification failed. Please try again.")
@@ -276,7 +282,7 @@ function PaymentConfirmContent() {
                       <span className="font-medium">{registration}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">RC Download</span>
+                      <span className="text-muted-foreground">Vehicle RC Download</span>
                       <span className="font-medium">₹{price}</span>
                     </div>
                     <Separator />
@@ -304,7 +310,12 @@ function PaymentConfirmContent() {
                     </div>
                   </CardHeader>
                   <CardFooter className="flex flex-col gap-3">
-                    <Button className="w-full" size="lg" onClick={handleWalletPayment} disabled={loading}>
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleWalletPayment}
+                      disabled={loading || (isAuthenticated && user && user.walletBalance < price)}
+                    >
                       {loading ? "Processing..." : `Pay ₹${price}`}
                     </Button>
                     {isAuthenticated && user && user.walletBalance < price && (

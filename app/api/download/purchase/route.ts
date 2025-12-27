@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     await dbQuery("UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?", [price, user.id])
     await dbQuery(
       "INSERT INTO transactions (id, user_id, type, amount, status, payment_method, description, registration_number) VALUES (?, ?, 'download', ?, 'completed', 'wallet', ?, ?)",
-      [txnId, user.id, -price, `RC Download - ${registrationNumber}`, registrationNumber],
+      [txnId, user.id, -price, `Vehicle RC Download - ${registrationNumber}`, registrationNumber],
     )
 
     return NextResponse.json({ ok: true, status: "completed", transactionId: txnId })
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
 
   await dbQuery(
     "INSERT INTO transactions (id, user_id, type, amount, status, payment_method, description, registration_number) VALUES (?, ?, 'download', ?, ?, 'upi', ?, ?)",
-    [txnId, userId, -price, status, `RC Download - ${registrationNumber}`, registrationNumber],
+    [txnId, userId, -price, status, `Vehicle RC Download - ${registrationNumber}`, registrationNumber],
   )
 
   return NextResponse.json({ ok: true, status, transactionId: txnId })

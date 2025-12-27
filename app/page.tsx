@@ -20,14 +20,11 @@ export default function HomePage() {
               <FileText className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <div className="text-lg font-bold text-foreground">RC Download Portal</div>
-              <div className="text-xs text-muted-foreground">Ministry of Road Transport</div>
+              <div className="text-lg font-bold text-foreground">VehicleRCDownload.com</div>
+              <div className="text-xs text-muted-foreground">Docx Solutions</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/test-credentials")}>
-              Setup
-            </Button>
             {isAuthenticated ? (
               <Button onClick={() => router.push("/dashboard")}>Go to Dashboard</Button>
             ) : (
@@ -47,7 +44,7 @@ export default function HomePage() {
           <section className="text-center space-y-6">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full text-sm font-medium text-blue-700">
               <Shield className="h-4 w-4" />
-              Official Government Service
+              Official Documents, One Platform
             </div>
             <h1 className="text-5xl md:text-6xl font-bold text-balance leading-tight">
               Download Vehicle RC
@@ -202,7 +199,7 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground leading-relaxed">
-                  All documents are authentic and sourced directly from the official government database
+                  Download convenient PDF copies of your documents with secure delivery and fast processing
                 </p>
               </CardContent>
             </Card>
@@ -216,8 +213,8 @@ export default function HomePage() {
             <div>
               <h3 className="font-semibold text-foreground mb-4">About</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Official portal for downloading Vehicle Registration Certificate documents under the Ministry of Road
-                Transport and Highways.
+                Docx Solutions operates VehicleRCDownload.com, a one-stop site for Vehicle RC downloads and other
+                official documents.
               </p>
             </div>
             <div>
@@ -265,23 +262,23 @@ export default function HomePage() {
                 </li>
                 <li>
                   <a
-                    href="mailto:support@rcportal.gov.in"
+                    href="mailto:support@vehiclercdownload.com"
                     className="text-muted-foreground hover:text-primary transition-colors"
                   >
-                    support@rcportal.gov.in
+                    support@vehiclercdownload.com
                   </a>
                 </li>
                 <li>
-                  <a href="tel:1800-267-0267" className="text-muted-foreground hover:text-primary transition-colors">
-                    1800-267-0267 (Toll-Free)
+                  <a href="tel:+919585533692" className="text-muted-foreground hover:text-primary transition-colors">
+                    095855 33692
                   </a>
                 </li>
               </ul>
             </div>
           </div>
           <div className="border-t pt-6 text-center text-sm text-muted-foreground">
-            <p>© 2025 RC Download Portal. All rights reserved.</p>
-            <p className="mt-2">Ministry of Road Transport and Highways, Government of India</p>
+            <p>© 2025 Docx Solutions. All rights reserved.</p>
+            <p className="mt-2">VehicleRCDownload.com</p>
           </div>
         </div>
       </footer>

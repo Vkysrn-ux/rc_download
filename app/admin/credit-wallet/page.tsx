@@ -18,6 +18,7 @@ function CreditWalletContent() {
   const [amount, setAmount] = useState("")
   const [reason, setReason] = useState("")
   const [success, setSuccess] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") {
@@ -25,8 +26,17 @@ function CreditWalletContent() {
       return
     }
 
-    const users = JSON.parse(localStorage.getItem("rc_app_users") || "[]")
-    setAllUsers(users)
+    const loadUsers = async () => {
+      setError("")
+      const res = await fetch("/api/admin/users")
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json?.error || "Failed to load users")
+        return
+      }
+      setAllUsers(json?.users || [])
+    }
+    void loadUsers()
 
     const preselectedUserId = searchParams.get("userId")
     if (preselectedUserId) {
@@ -34,36 +44,23 @@ function CreditWalletContent() {
     }
   }, [isAuthenticated, user, router, searchParams])
 
-  const handleCredit = () => {
+  const handleCredit = async () => {
     if (!selectedUserId || !amount || Number.parseFloat(amount) <= 0) {
       alert("Please select a user and enter a valid amount")
       return
     }
 
-    const users = JSON.parse(localStorage.getItem("rc_app_users") || "[]")
-    const userIndex = users.findIndex((u: any) => u.id === selectedUserId)
-
-    if (userIndex === -1) {
-      alert("User not found")
+    setError("")
+    const res = await fetch("/api/admin/users/credit-wallet", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: selectedUserId, amount: Number.parseFloat(amount), reason }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setError(json?.error || "Failed to credit wallet")
       return
     }
-
-    users[userIndex].walletBalance += Number.parseFloat(amount)
-    localStorage.setItem("rc_app_users", JSON.stringify(users))
-
-    const transactions = JSON.parse(localStorage.getItem("rc_app_transactions") || "[]")
-    const newTransaction = {
-      id: `txn${Date.now()}`,
-      userId: selectedUserId,
-      type: "recharge",
-      amount: Number.parseFloat(amount),
-      status: "completed",
-      timestamp: new Date().toISOString(),
-      description: `Admin Credit: ${reason || "Manual wallet credit"}`,
-      paymentMethod: "Admin",
-    }
-    transactions.push(newTransaction)
-    localStorage.setItem("rc_app_transactions", JSON.stringify(transactions))
 
     setSuccess(true)
     setTimeout(() => {
@@ -102,6 +99,7 @@ function CreditWalletContent() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
+          {error && <div className="text-sm text-destructive mb-4">{error}</div>}
           {success ? (
             <Card className="shadow-lg border-green-200 bg-green-50">
               <CardContent className="pt-6">

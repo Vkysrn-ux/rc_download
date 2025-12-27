@@ -28,7 +28,7 @@ function clampUpiText(value: string, maxLength: number) {
 function buildUpiUri(upiId: string, payeeName: string, amount: number, note: string) {
   const params = new URLSearchParams({
     pa: upiId,
-    pn: clampUpiText(payeeName || "RC Download", 25),
+    pn: clampUpiText(payeeName || "Vehicle RC Download", 25),
     am: amount.toFixed(2),
     cu: "INR",
     tn: clampUpiText(note, 50),

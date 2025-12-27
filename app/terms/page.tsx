@@ -13,8 +13,8 @@ export default function TermsPage() {
               <FileText className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <div className="text-lg font-bold text-foreground">RC Download Portal</div>
-              <div className="text-xs text-muted-foreground">Ministry of Road Transport</div>
+              <div className="text-lg font-bold text-foreground">VehicleRCDownload.com</div>
+              <div className="text-xs text-muted-foreground">Docx Solutions</div>
             </div>
           </div>
           <Link href="/">
@@ -36,8 +36,8 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">1. Acceptance of Terms</h2>
               <p className="text-muted-foreground leading-relaxed">
-                By accessing and using the RC Download Portal ("the Service"), you accept and agree to be bound by the
-                terms and provisions of this agreement. If you do not agree to these terms, please do not use this
+                By accessing and using VehicleRCDownload.com (the "Service"), you accept and agree to be bound by the
+                terms and provisions of this agreement. If you do not agree to these terms, please do not use the
                 Service.
               </p>
             </section>
@@ -45,9 +45,9 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">2. Service Description</h2>
               <p className="text-muted-foreground leading-relaxed">
-                RC Download Portal provides a platform for downloading official Vehicle Registration Certificate (RC)
-                documents. The Service is operated under the authority of the Ministry of Road Transport and Highways,
-                Government of India.
+                VehicleRCDownload.com, operated by Docx Solutions, provides a platform for downloading Vehicle
+                Registration Certificate (RC) documents and other official documents. The Service may use third-party
+                providers and data sources to fulfil your request.
               </p>
             </section>
 
@@ -142,18 +142,18 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">10. Limitation of Liability</h2>
               <p className="text-muted-foreground leading-relaxed">
-                RC Download Portal and its operators shall not be liable for any indirect, incidental, special,
-                consequential, or punitive damages resulting from your use of the Service. Our total liability shall not
-                exceed the amount paid by you for the specific transaction in question.
+                VehicleRCDownload.com and Docx Solutions shall not be liable for any indirect, incidental, special,
+                consequential, or punitive damages resulting from your use of the Service. Our total liability shall
+                not exceed the amount paid by you for the specific transaction in question.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">11. Data Accuracy</h2>
               <p className="text-muted-foreground leading-relaxed">
-                RC documents are sourced from official government databases. While we ensure accuracy, we are not
-                responsible for errors in the source data. Users should verify critical information with the relevant
-                transport authority.
+                Document data may be sourced from third-party providers and official sources. While we strive for
+                accuracy, we are not responsible for errors in source data. Users should verify critical information
+                with the relevant authority.
               </p>
             </section>
 
@@ -179,8 +179,8 @@ export default function TermsPage() {
               <h2 className="text-xl font-semibold text-foreground mb-3">14. Governing Law</h2>
               <p className="text-muted-foreground leading-relaxed">
                 These terms shall be governed by and construed in accordance with the laws of India. Any disputes
-                arising from these terms or the Service shall be subject to the exclusive jurisdiction of courts in New
-                Delhi, India.
+                arising from these terms or the Service shall be subject to the exclusive jurisdiction of courts in
+                Coimbatore, Tamil Nadu, India.
               </p>
             </section>
 
@@ -191,7 +191,7 @@ export default function TermsPage() {
                 <Link href="/helpdesk" className="text-primary hover:underline">
                   helpdesk page
                 </Link>{" "}
-                or email support@rcportal.gov.in
+                or email support@vehiclercdownload.com, or call 095855 33692.
               </p>
             </section>
           </CardContent>

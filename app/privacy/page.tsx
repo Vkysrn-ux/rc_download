@@ -13,8 +13,8 @@ export default function PrivacyPage() {
               <FileText className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <div className="text-lg font-bold text-foreground">RC Download Portal</div>
-              <div className="text-xs text-muted-foreground">Ministry of Road Transport</div>
+              <div className="text-lg font-bold text-foreground">VehicleRCDownload.com</div>
+              <div className="text-xs text-muted-foreground">Docx Solutions</div>
             </div>
           </div>
           <Link href="/">
@@ -39,9 +39,10 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">1. Introduction</h2>
               <p className="text-muted-foreground leading-relaxed">
-                RC Download Portal ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy
-                explains how we collect, use, disclose, and safeguard your information when you use our Service. This
-                policy complies with the Information Technology Act, 2000 and applicable privacy regulations.
+                VehicleRCDownload.com, operated by Docx Solutions ("we", "our", or "us"), is committed to protecting
+                your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information
+                when you use our Service. This policy complies with the Information Technology Act, 2000 and applicable
+                privacy regulations.
               </p>
             </section>
 
@@ -98,7 +99,8 @@ export default function PrivacyPage() {
               <h3 className="text-lg font-medium text-foreground mt-4 mb-2">4.1 We Share Information With:</h3>
               <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
                 <li>
-                  <strong>Government Authorities:</strong> Ministry of Road Transport and Highways for RC data retrieval
+                  <strong>Document/Data Providers:</strong> Third-party providers and official sources (as needed) to
+                  fulfil your request
                 </li>
                 <li>
                   <strong>Payment Processors:</strong> Razorpay for secure payment processing
@@ -184,7 +186,7 @@ export default function PrivacyPage() {
                 <Link href="/helpdesk" className="text-primary hover:underline">
                   helpdesk page
                 </Link>{" "}
-                or email privacy@rcportal.gov.in
+                or email support@vehiclercdownload.com
               </p>
             </section>
 
@@ -262,12 +264,13 @@ export default function PrivacyPage() {
                 <p className="text-foreground">
                   <strong>Data Protection Officer</strong>
                 </p>
-                <p className="text-muted-foreground mt-1">RC Download Portal</p>
-                <p className="text-muted-foreground">Ministry of Road Transport and Highways</p>
-                <p className="text-muted-foreground">Transport Bhawan, 1, Parliament Street</p>
-                <p className="text-muted-foreground">New Delhi - 110001, India</p>
-                <p className="text-muted-foreground mt-2">Email: privacy@rcportal.gov.in</p>
-                <p className="text-muted-foreground">Phone: 1800-267-0267 (Toll-Free)</p>
+                <p className="text-muted-foreground mt-1">Docx Solutions</p>
+                <p className="text-muted-foreground">VehicleRCDownload.com</p>
+                <p className="text-muted-foreground">Isha Towers, 222/4, New Scheme Rd</p>
+                <p className="text-muted-foreground">Near KVB Bank, Pappanaickenpalayam</p>
+                <p className="text-muted-foreground">Coimbatore, Tamil Nadu 641037, India</p>
+                <p className="text-muted-foreground mt-2">Email: support@vehiclercdownload.com</p>
+                <p className="text-muted-foreground">Phone: 095855 33692</p>
               </div>
             </section>
 

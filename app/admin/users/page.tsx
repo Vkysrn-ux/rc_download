@@ -15,17 +15,18 @@ interface User {
   name: string
   walletBalance: number
   role: string
-  isActive?: boolean
+  isActive: boolean
 }
 
 interface Transaction {
   id: string
-  userId: string
+  userId: string | null
   type: "recharge" | "download"
   amount: number
   timestamp: string
   description: string
-  vehicleNumber?: string
+  status?: string
+  registrationNumber?: string | null
 }
 
 export default function AdminUsersPage() {
@@ -37,6 +38,9 @@ export default function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [activeTab, setActiveTab] = useState<"downloads" | "transactions">("downloads")
   const [userTransactions, setUserTransactions] = useState<Transaction[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [loadingTransactions, setLoadingTransactions] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") {
@@ -44,7 +48,7 @@ export default function AdminUsersPage() {
       return
     }
 
-    loadUsers()
+    void loadUsers()
   }, [isAuthenticated, user, router])
 
   useEffect(() => {
@@ -60,40 +64,61 @@ export default function AdminUsersPage() {
     }
   }, [searchQuery, allUsers])
 
-  const loadUsers = () => {
-    const users = JSON.parse(localStorage.getItem("rc_app_users") || "[]")
-    const usersWithStatus = users.map((u: User) => ({
-      ...u,
-      isActive: u.isActive !== false,
-    }))
-    setAllUsers(usersWithStatus)
-    setFilteredUsers(usersWithStatus)
+  const loadUsers = async () => {
+    setLoadingUsers(true)
+    setError("")
+    const res = await fetch("/api/admin/users")
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setError(json?.error || "Failed to load users")
+      setLoadingUsers(false)
+      return
+    }
+    const users = (json?.users || []) as User[]
+    setAllUsers(users)
+    setSelectedUser((prev) => (prev ? users.find((u) => u.id === prev.id) ?? prev : prev))
+    setLoadingUsers(false)
   }
 
-  const loadUserTransactions = (userId: string) => {
-    const transactions = JSON.parse(localStorage.getItem("rc_app_transactions") || "[]")
-    const userTxns = transactions.filter((t: Transaction) => t.userId === userId)
-    setUserTransactions(userTxns)
+  const loadUserTransactions = async (userId: string) => {
+    setLoadingTransactions(true)
+    setError("")
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/transactions`)
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setError(json?.error || "Failed to load transactions")
+      setLoadingTransactions(false)
+      return
+    }
+    setUserTransactions((json?.transactions || []) as Transaction[])
+    setLoadingTransactions(false)
   }
 
   const handleUserClick = (u: User) => {
     setSelectedUser(u)
     setActiveTab("downloads")
-    loadUserTransactions(u.id)
+    void loadUserTransactions(u.id)
   }
 
-  const toggleUserStatus = (userId: string) => {
-    const users = JSON.parse(localStorage.getItem("rc_app_users") || "[]")
-    const updatedUsers = users.map((u: User) => {
-      if (u.id === userId) {
-        return { ...u, isActive: u.isActive === false ? true : false }
-      }
-      return u
+  const toggleUserStatus = async (userId: string) => {
+    const current = allUsers.find((u) => u.id === userId) ?? selectedUser
+    const nextIsActive = !(current?.isActive ?? true)
+
+    setError("")
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/status`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ isActive: nextIsActive }),
     })
-    localStorage.setItem("rc_app_users", JSON.stringify(updatedUsers))
-    loadUsers()
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setError(json?.error || "Failed to update user status")
+      return
+    }
+
+    await loadUsers()
     if (selectedUser?.id === userId) {
-      setSelectedUser({ ...selectedUser, isActive: selectedUser.isActive === false ? true : false })
+      setSelectedUser({ ...selectedUser, isActive: nextIsActive })
     }
   }
 
@@ -134,6 +159,7 @@ export default function AdminUsersPage() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
+          {error && <div className="text-sm text-destructive">{error}</div>}
           {selectedUser ? (
             <div className="space-y-6">
               <Card className="shadow-md">
@@ -210,6 +236,7 @@ export default function AdminUsersPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {loadingTransactions && <div className="text-sm text-muted-foreground py-3">Loading…</div>}
                   {activeTab === "downloads" ? (
                     <div className="space-y-3">
                       {getDownloads().length === 0 ? (
@@ -223,12 +250,12 @@ export default function AdminUsersPage() {
                                   <div className="p-2 bg-blue-100 rounded-lg">
                                     <Download className="h-5 w-5 text-blue-600" />
                                   </div>
-                                  <div>
-                                    <p className="font-semibold">{txn.vehicleNumber}</p>
-                                    <p className="text-sm text-muted-foreground">{txn.description}</p>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      {new Date(txn.timestamp).toLocaleString()}
-                                    </p>
+                                   <div>
+                                     <p className="font-semibold">{txn.registrationNumber}</p>
+                                     <p className="text-sm text-muted-foreground">{txn.description}</p>
+                                     <p className="text-xs text-muted-foreground mt-1">
+                                       {new Date(txn.timestamp).toLocaleString()}
+                                     </p>
                                   </div>
                                 </div>
                                 <div className="text-right">
@@ -261,7 +288,7 @@ export default function AdminUsersPage() {
                                   </div>
                                   <div>
                                     <p className="font-semibold">
-                                      {txn.type === "recharge" ? "Wallet Recharge" : txn.vehicleNumber}
+                                      {txn.type === "recharge" ? "Wallet Recharge" : txn.registrationNumber}
                                     </p>
                                     <p className="text-sm text-muted-foreground">{txn.description}</p>
                                     <p className="text-xs text-muted-foreground mt-1">
@@ -308,6 +335,7 @@ export default function AdminUsersPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
+                  {loadingUsers && <div className="text-sm text-muted-foreground py-3">Loading…</div>}
                   {filteredUsers.map((u) => (
                     <Card key={u.id} className="shadow-sm cursor-pointer hover:shadow-md transition-shadow">
                       <CardContent className="p-4" onClick={() => handleUserClick(u)}>

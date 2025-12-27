@@ -15,8 +15,8 @@ export default function HelpdeskPage() {
               <FileText className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <div className="text-lg font-bold text-foreground">RC Download Portal</div>
-              <div className="text-xs text-muted-foreground">Ministry of Road Transport</div>
+              <div className="text-lg font-bold text-foreground">VehicleRCDownload.com</div>
+              <div className="text-xs text-muted-foreground">Docx Solutions</div>
             </div>
           </div>
           <Link href="/">
@@ -44,8 +44,7 @@ export default function HelpdeskPage() {
               <CardDescription>Speak with our support team</CardDescription>
             </CardHeader>
             <CardContent className="text-center space-y-2">
-              <p className="text-foreground font-semibold text-lg">1800-267-0267</p>
-              <p className="text-sm text-muted-foreground">(Toll-Free)</p>
+              <p className="text-foreground font-semibold text-lg">095855 33692</p>
               <p className="text-sm text-muted-foreground">Mon-Fri: 9:00 AM - 6:00 PM IST</p>
               <p className="text-sm text-muted-foreground">Sat: 9:00 AM - 1:00 PM IST</p>
             </CardContent>
@@ -60,9 +59,9 @@ export default function HelpdeskPage() {
               <CardDescription>Get help via email</CardDescription>
             </CardHeader>
             <CardContent className="text-center space-y-2">
-              <p className="text-foreground font-medium">support@rcportal.gov.in</p>
+              <p className="text-foreground font-medium">support@vehiclercdownload.com</p>
               <p className="text-sm text-muted-foreground mt-3">Technical Issues:</p>
-              <p className="text-foreground font-medium">tech@rcportal.gov.in</p>
+              <p className="text-foreground font-medium">support@vehiclercdownload.com</p>
               <p className="text-sm text-muted-foreground mt-3">Response Time: 24-48 hours</p>
             </CardContent>
           </Card>
@@ -198,11 +197,11 @@ export default function HelpdeskPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <p className="font-semibold text-foreground">RC Download Portal</p>
-                <p className="text-muted-foreground">Ministry of Road Transport and Highways</p>
-                <p className="text-muted-foreground">Transport Bhawan</p>
-                <p className="text-muted-foreground">1, Parliament Street</p>
-                <p className="text-muted-foreground">New Delhi - 110001</p>
+                <p className="font-semibold text-foreground">Docx Solutions</p>
+                <p className="text-muted-foreground">VehicleRCDownload.com</p>
+                <p className="text-muted-foreground">Isha Towers, 222/4, New Scheme Rd</p>
+                <p className="text-muted-foreground">Near KVB Bank, Pappanaickenpalayam</p>
+                <p className="text-muted-foreground">Coimbatore, Tamil Nadu 641037</p>
                 <p className="text-muted-foreground">India</p>
               </CardContent>
             </Card>
