@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { loadRazorpayCheckout } from "@/lib/razorpay-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -93,18 +94,16 @@ function PaymentConfirmContent() {
     }
   }, [upiUri, config?.qrUrl])
 
-  const handlePayment = async () => {
+  const handleWalletPayment = async () => {
     setLoading(true)
     setError("")
     setInfo("")
 
     try {
-      const paymentMethod = source === "wallet" ? "wallet" : "upi"
-
       const res = await fetch("/api/download/purchase", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ registrationNumber: registration, paymentMethod, guest: isGuest }),
+        body: JSON.stringify({ registrationNumber: registration, paymentMethod: "wallet", guest: isGuest }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -124,6 +123,112 @@ function PaymentConfirmContent() {
       }, 1200)
     } catch {
       setError("Payment failed. Please try again.")
+      setLoading(false)
+    }
+  }
+
+  const handleUpiManualPayment = async () => {
+    setLoading(true)
+    setError("")
+    setInfo("")
+
+    try {
+      const res = await fetch("/api/download/purchase", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ registrationNumber: registration, paymentMethod: "upi", guest: isGuest }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json?.error || "Payment failed. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      await refreshUser()
+      if (json?.status === "pending") {
+        setInfo("Payment recorded as pending. You can proceed, but it may be reviewed later.")
+      }
+
+      setSuccess(true)
+      setTimeout(() => {
+        router.push(`/payment/success?registration=${encodeURIComponent(registration)}`)
+      }, 1200)
+    } catch {
+      setError("Payment failed. Please try again.")
+      setLoading(false)
+    }
+  }
+
+  const handleRazorpayPayment = async () => {
+    setLoading(true)
+    setError("")
+    setInfo("")
+
+    try {
+      const res = await fetch("/api/razorpay/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ purpose: "download", registrationNumber: registration, guest: isGuest }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json?.error || "Unable to start payment. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      await loadRazorpayCheckout()
+      const RazorpayCtor = (window as any).Razorpay
+      if (!RazorpayCtor) throw new Error("Razorpay failed to load")
+
+      const rzp = new RazorpayCtor({
+        key: json.keyId,
+        amount: json.amount,
+        currency: json.currency,
+        name: json.name,
+        description: json.description,
+        order_id: json.orderId,
+        prefill: json.prefill ?? undefined,
+        modal: {
+          ondismiss: () => setLoading(false),
+        },
+        handler: async (response: any) => {
+          try {
+            setLoading(true)
+            const verifyRes = await fetch("/api/razorpay/verify", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ transactionId: json.transactionId, ...response }),
+            })
+            const verifyJson = await verifyRes.json().catch(() => ({}))
+            if (!verifyRes.ok) {
+              setError(verifyJson?.error || "Payment verification failed. Please contact support.")
+              setLoading(false)
+              return
+            }
+
+            await refreshUser()
+            setSuccess(true)
+            setTimeout(() => {
+              router.push(`/payment/success?registration=${encodeURIComponent(registration)}`)
+            }, 1200)
+          } catch {
+            setError("Payment verification failed. Please try again.")
+            setLoading(false)
+          }
+        },
+      })
+
+      rzp.on("payment.failed", (resp: any) => {
+        const msg = resp?.error?.description || resp?.error?.reason || "Payment failed. Please try again."
+        setError(msg)
+        setLoading(false)
+      })
+
+      rzp.open()
+    } catch (e: any) {
+      setError(e?.message || "Unable to start payment. Please try again.")
       setLoading(false)
     }
   }
@@ -199,7 +304,7 @@ function PaymentConfirmContent() {
                     </div>
                   </CardHeader>
                   <CardFooter className="flex flex-col gap-3">
-                    <Button className="w-full" size="lg" onClick={handlePayment} disabled={loading}>
+                    <Button className="w-full" size="lg" onClick={handleWalletPayment} disabled={loading}>
                       {loading ? "Processing..." : `Pay ₹${price}`}
                     </Button>
                     {isAuthenticated && user && user.walletBalance < price && (
@@ -214,11 +319,24 @@ function PaymentConfirmContent() {
                   </CardFooter>
                 </Card>
               ) : (
-                <Card className="border-primary">
-                  <CardHeader>
-                    <CardTitle>Pay via UPI</CardTitle>
-                    <CardDescription>Scan QR or use the UPI ID</CardDescription>
-                  </CardHeader>
+                <>
+                  <Card className="border-primary">
+                    <CardHeader>
+                      <CardTitle>Pay with Razorpay</CardTitle>
+                      <CardDescription>Cards, UPI, NetBanking, Wallets</CardDescription>
+                    </CardHeader>
+                    <CardFooter>
+                      <Button className="w-full" size="lg" onClick={handleRazorpayPayment} disabled={loading || !registration}>
+                        {loading ? "Opening..." : `Pay INR ${price}`}
+                      </Button>
+                    </CardFooter>
+                  </Card>
+
+                  <Card className="border-primary/40">
+                    <CardHeader>
+                      <CardTitle>Pay via UPI (Manual)</CardTitle>
+                      <CardDescription>Scan QR or use the UPI ID</CardDescription>
+                    </CardHeader>
                   <CardContent className="space-y-4">
                     {!config?.upiId ? (
                       <Alert variant="destructive">
@@ -277,11 +395,12 @@ function PaymentConfirmContent() {
                     )}
                   </CardContent>
                   <CardFooter>
-                    <Button className="w-full" size="lg" onClick={handlePayment} disabled={loading || !registration}>
+                    <Button className="w-full" size="lg" onClick={handleUpiManualPayment} disabled={loading || !registration}>
                       {loading ? "Saving..." : "I've Paid"}
                     </Button>
                   </CardFooter>
-                </Card>
+                  </Card>
+                </>
               )}
             </>
           )}

@@ -67,14 +67,19 @@ CREATE TABLE IF NOT EXISTS transactions (
   type ENUM('recharge','download') NOT NULL,
   amount DECIMAL(10,2) NOT NULL,
   status ENUM('pending','completed','failed') NOT NULL DEFAULT 'pending',
-  payment_method ENUM('wallet','upi') NULL,
+  payment_method ENUM('wallet','upi','razorpay') NULL,
   description VARCHAR(255) NOT NULL,
   registration_number VARCHAR(32) NULL,
+  gateway VARCHAR(32) NULL,
+  gateway_order_id VARCHAR(64) NULL,
+  gateway_payment_id VARCHAR(64) NULL,
+  gateway_signature VARCHAR(255) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_tx_user_created (user_id, created_at),
   KEY idx_tx_status (status),
+  KEY idx_tx_gateway_order (gateway_order_id),
   CONSTRAINT fk_tx_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 

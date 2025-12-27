@@ -21,6 +21,12 @@ function DownloadPageContent() {
 
   const price = isAuthenticated ? 20 : 30
 
+  const displayValue = (value: any) => {
+    if (value === null || value === undefined) return "—"
+    const text = String(value).trim()
+    return text ? text : "—"
+  }
+
   const handleSearch = async () => {
     setError("")
     setRcData(null)
@@ -137,36 +143,58 @@ function DownloadPageContent() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <div className="text-sm text-muted-foreground">Registration Number</div>
-                    <div className="font-medium">{rcData.registrationNumber}</div>
+                    <div className="font-medium">{displayValue(rcData.registrationNumber)}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-sm text-muted-foreground">Owner Name</div>
-                    <div className="font-medium">{rcData.ownerName}</div>
+                    <div className="font-medium">{displayValue(rcData.ownerName)}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-sm text-muted-foreground">Vehicle Class</div>
-                    <div className="font-medium">{rcData.vehicleClass}</div>
+                    <div className="font-medium">{displayValue(rcData.vehicleClass)}</div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-sm text-muted-foreground">Maker & Model</div>
-                    <div className="font-medium">
-                      {rcData.maker} {rcData.model}
-                    </div>
+                    <div className="text-sm text-muted-foreground">Maker</div>
+                    <div className="font-medium">{displayValue(rcData.maker)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">Model</div>
+                    <div className="font-medium">{displayValue(rcData.model)}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-sm text-muted-foreground">Fuel Type</div>
-                    <div className="font-medium">{rcData.fuelType}</div>
+                    <div className="font-medium">{displayValue(rcData.fuelType)}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-sm text-muted-foreground">Registration Date</div>
-                    <div className="font-medium">{rcData.registrationDate}</div>
+                    <div className="font-medium">{displayValue(rcData.registrationDate)}</div>
                   </div>
-                  <div className="space-y-1 md:col-span-2">
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">Chassis Number</div>
+                    <div className="font-medium">{displayValue(rcData.chassisNumber)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">Engine Number</div>
+                    <div className="font-medium">{displayValue(rcData.engineNumber)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">Financier</div>
+                    <div className="font-medium">{displayValue(rcData.financier)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">Registration Authority</div>
+                    <div className="font-medium">{displayValue(rcData.registrationAuthority)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">Registration Validity</div>
+                    <div className="font-medium">{displayValue(rcData.registrationValidity)}</div>
+                  </div>
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-3">
                     <div className="text-sm text-muted-foreground">Address</div>
-                    <div className="font-medium">{rcData.address}</div>
+                    <div className="font-medium">{displayValue(rcData.address)}</div>
                   </div>
                 </div>
               </CardContent>

@@ -59,6 +59,19 @@ const MIN_QR_VERSION = 5
 
 const HEADER_FONT_FAMILY = '"Arial Black", Arial, Helvetica, sans-serif'
 
+const EMPTY_VALUE = "—"
+
+function displayValue(value: unknown) {
+  if (value === null || value === undefined) return EMPTY_VALUE
+  const text = String(value).trim()
+  return text ? text : EMPTY_VALUE
+}
+
+function displayUpper(value: unknown) {
+  const text = displayValue(value)
+  return text === EMPTY_VALUE ? text : text.toUpperCase()
+}
+
 const CIRCLE_TEXT_POSITIONS = {
   front: {
     nt: { left: 550, top: 22, size: 28 },
@@ -178,20 +191,23 @@ function BadgeCircle({ text, tone }: { text: string; tone: "blue" | "orange" }) 
 }
 
 export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) {
-  const state = data.registrationNumber.substring(0, 2).toUpperCase()
+  const registrationNumber = typeof data.registrationNumber === "string" ? data.registrationNumber : ""
+  const ownerName = typeof data.ownerName === "string" ? data.ownerName : ""
+  const chassisNumber = typeof data.chassisNumber === "string" ? data.chassisNumber : ""
+  const state = registrationNumber.substring(0, 2).toUpperCase()
   const regnDate = formatDateDdMmYyyy(data.registrationDate)
-  const validity = data.registrationValidity || addYearsDdMmYyyy(data.registrationDate, 15)
+  const validity = data.registrationValidity?.trim() ? data.registrationValidity : addYearsDdMmYyyy(data.registrationDate, 15)
   const issueMonthYear = formatMonthYear(data.registrationDate)
   const [templateStatus, setTemplateStatus] = useState<"unknown" | "ok" | "missing">("unknown")
   const [templateErrorCount, setTemplateErrorCount] = useState(0)
   const [loadedSideTemplateUrl, setLoadedSideTemplateUrl] = useState<string | null>(null)
   const [loadedCombinedTemplate, setLoadedCombinedTemplate] = useState<{ url: string; w: number; h: number } | null>(null)
   const qr = useMemo(() => {
-    const payload = `${data.registrationNumber}|${data.ownerName}|${data.chassisNumber}`
+    const payload = `${registrationNumber}|${ownerName}|${chassisNumber}`
     const auto = QRCode.create(payload, { errorCorrectionLevel: "M" })
     if (auto.version >= MIN_QR_VERSION) return auto
     return QRCode.create(payload, { errorCorrectionLevel: "M", version: MIN_QR_VERSION })
-  }, [data.registrationNumber, data.ownerName, data.chassisNumber])
+  }, [chassisNumber, ownerName, registrationNumber])
 
   const qrRender = useMemo(() => {
     const quietZone = 0
@@ -384,26 +400,26 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
         <div className="text-black" style={field(260, 94, 120)}>
           <div style={{ fontSize: x(10) }}>Regn. No</div>
           <div className="font-bold" style={{ fontSize: x(14) }}>
-            {data.registrationNumber.toUpperCase()}
+            {displayUpper(registrationNumber)}
           </div>
         </div>
         <div className="text-black" style={field(395, 94, 110)}>
           <div style={{ fontSize: x(10) }}>Date of Regn.</div>
           <div className="font-bold" style={{ fontSize: x(12) }}>
-            {regnDate}
+            {displayValue(regnDate)}
           </div>
         </div>
         <div className="text-black" style={field(515, 94, 115)}>
           <div style={{ fontSize: x(10) }}>Regn. Validity</div>
           <div className="font-bold" style={{ fontSize: x(12) }}>
-            {validity}
+            {displayValue(validity)}
           </div>
         </div>
 
         <div className="text-black" style={field(260, 143, 260)}>
           <div style={{ fontSize: x(10) }}>Chassis Number</div>
           <div className="font-bold" style={{ fontSize: x(13) }}>
-            {data.chassisNumber.toUpperCase()}
+            {displayUpper(data.chassisNumber)}
           </div>
         </div>
 
@@ -418,14 +434,14 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
         <div className="text-black" style={field(260, 186, 240)}>
           <div style={{ fontSize: x(10) }}>Engine / Motor Number</div>
           <div className="font-bold" style={{ fontSize: x(13) }}>
-            {data.engineNumber.toUpperCase()}
+            {displayUpper(data.engineNumber)}
           </div>
         </div>
 
         <div className="text-black" style={field(260, 229, 260)}>
           <div style={{ fontSize: x(10) }}>Owner Name</div>
-          <div className="font-bold" style={{ fontSize: x(16) }}>
-            {data.ownerName.toUpperCase()}
+          <div className="font-bold" style={{ fontSize: x(14) }}>
+            {displayUpper(data.ownerName)}
           </div>
         </div>
 
@@ -438,21 +454,21 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
         <div className="text-black" style={field(260, 290, 360)}>
           <div style={{ fontSize: x(10) }}>Address</div>
           <div className="font-bold" style={{ fontSize: x(11), lineHeight: 1.2 }}>
-            {data.address}
+            {displayValue(data.address)}
           </div>
         </div>
 
         <div className="text-black" style={field(48, 238, 160)}>
           <div style={{ fontSize: x(10) }}>Fuel</div>
           <div className="font-bold" style={{ fontSize: x(11) }}>
-            {(data.fuelType || "").toUpperCase()}
+            {displayUpper(data.fuelType)}
           </div>
         </div>
 
         <div className="text-black" style={field(48, 290, 170)}>
           <div style={{ fontSize: x(10) }}>Emission Norms</div>
           <div className="font-bold" style={{ fontSize: x(11) }}>
-            {(data.emissionNorms || "BHARAT STAGE VI").toUpperCase()}
+            {displayUpper(data.emissionNorms)}
           </div>
         </div>
 
@@ -569,13 +585,13 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
         className="absolute left-0 right-0 text-center"
         style={{ top: y(16), fontSize: x(12), fontFamily: HEADER_FONT_FAMILY, fontWeight: 800 }}
       >
-        Vehicle Class:&nbsp; {data.vehicleClass}
+        Vehicle Class:&nbsp; {displayValue(data.vehicleClass)}
       </div>
 
       <div className="text-black" style={field(32, 86, 170)}>
         <div style={{ fontSize: x(10) }}>Regn. Number</div>
         <div className="font-bold" style={{ fontSize: x(14) }}>
-          {data.registrationNumber.toUpperCase()}
+          {displayUpper(registrationNumber)}
         </div>
       </div>
 
@@ -609,81 +625,81 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
       <div className="text-black" style={field(32, 292, 180)}>
         <div style={{ fontSize: x(10) }}>Month - Year of Mfg.</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {formatMonthYear(data.manufacturingDate || data.registrationDate)}
+          {displayValue(formatMonthYear(data.manufacturingDate || data.registrationDate))}
         </div>
       </div>
 
       <div className="text-black" style={field(32, 330, 180)}>
         <div style={{ fontSize: x(10) }}>No of Cylinders :</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {(data.cylinders || "4").toString()}
+          {displayValue(data.cylinders)}
         </div>
       </div>
 
       <div className="text-black" style={field(250, 86, 300)}>
         <div style={{ fontSize: x(10) }}>Maker's Name</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {data.maker.toUpperCase()}
+          {displayUpper(data.maker)}
         </div>
       </div>
       <div className="text-black" style={field(250, 126, 300)}>
         <div style={{ fontSize: x(10) }}>Model Name</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {data.model.toUpperCase()}
+          {displayUpper(data.model)}
         </div>
       </div>
       <div className="text-black" style={field(250, 166, 300)}>
         <div style={{ fontSize: x(10) }}>Color</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {(data.color || "PRME SPLENDID SILVER").toUpperCase()}
+          {displayUpper(data.color)}
         </div>
       </div>
       <div className="text-black" style={field(250, 206, 300)}>
         <div style={{ fontSize: x(10) }}>Body Type</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {(data.bodyType || "HATCHBACK").toUpperCase()}
+          {displayUpper(data.bodyType)}
         </div>
       </div>
 
       <div className="text-black" style={field(250, 248, 150)}>
         <div style={{ fontSize: x(10) }}>Seating (in all) Capacity</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {data.seatingCapacity || "5"}
+          {displayValue(data.seatingCapacity)}
         </div>
       </div>
       <div className="text-black" style={field(418, 248, 160)}>
         <div style={{ fontSize: x(10) }}>Unladen Weight (Kg)</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {data.unladenWeight || "930"}
+          {displayValue(data.unladenWeight)}
         </div>
       </div>
 
       <div className="text-black" style={field(250, 292, 150)}>
         <div style={{ fontSize: x(10) }}>Cubic Cap. / Horse Power (BHP/Kw)</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {data.cubicCapacity || "1197.00"}
+          {displayValue(data.cubicCapacity)}
         </div>
       </div>
       <div className="text-black font-bold" style={field(405, 314, 60)}>
-        <div style={{ fontSize: x(12) }}>{data.horsePower || "82.6"}</div>
+        <div style={{ fontSize: x(12) }}>{displayValue(data.horsePower)}</div>
       </div>
       <div className="text-black" style={field(480, 292, 140)}>
         <div style={{ fontSize: x(10) }}>Wheel Base(mm)</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
-          {data.wheelBase || "2520"}
+          {displayValue(data.wheelBase)}
         </div>
       </div>
 
       <div className="text-black" style={field(250, 350, 180)}>
         <div style={{ fontSize: x(10) }}>Financier</div>
         <div className="font-bold" style={{ fontSize: x(10) }}>
-          {(data.financier || "KOTAK MAHINDRA PRIME LTD").toUpperCase()}
+          {displayUpper(data.financier)}
         </div>
       </div>
       <div className="text-black" style={field(440, 350, 190)}>
         <div style={{ fontSize: x(10) }}>Registration Authority</div>
         <div className="font-bold" style={{ fontSize: x(10) }}>
-          {(data.registrationAuthority || "COIMBATORE (NORTH) RTO, Tamil Nadu").toUpperCase()}
+          {displayUpper(data.registrationAuthority)}
         </div>
       </div>
 

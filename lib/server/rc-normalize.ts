@@ -35,6 +35,68 @@ function firstString(obj: AnyObj, keys: string[]): string | undefined {
   return undefined
 }
 
+function looksLikeBooleanish(value: string) {
+  return /^(?:y|n|yes|no|true|false)$/i.test(value.trim())
+}
+
+function extractFinancier(inner: AnyObj): string | undefined {
+  const direct =
+    firstString(inner, [
+      "financer",
+      "financier",
+      "financier_name",
+      "financer_name",
+      "financierName",
+      "financerName",
+      "finance_company",
+      "financeCompany",
+      "bank_name",
+      "bankName",
+      "hypothecation",
+    ]) ?? undefined
+
+  if (direct && !looksLikeBooleanish(direct)) return direct
+
+  const hyp = inner?.hypothecation
+  if (hyp && typeof hyp === "object") {
+    const fromObj =
+      firstString(hyp as AnyObj, [
+        "financer",
+        "financier",
+        "financier_name",
+        "financer_name",
+        "financierName",
+        "financerName",
+        "bank_name",
+        "bankName",
+        "name",
+      ]) ?? undefined
+    if (fromObj) return fromObj
+  }
+
+  if (Array.isArray(hyp) && hyp.length) {
+    for (const item of hyp) {
+      if (item && typeof item === "object") {
+        const fromItem =
+          firstString(item as AnyObj, [
+            "financer",
+            "financier",
+            "financier_name",
+            "financer_name",
+            "financierName",
+            "financerName",
+            "bank_name",
+            "bankName",
+            "name",
+          ]) ?? undefined
+        if (fromItem) return fromItem
+      }
+    }
+  }
+
+  return undefined
+}
+
 function joinNonEmpty(parts: Array<string | undefined | null>, separator = ", ") {
   return parts.map((p) => (typeof p === "string" ? p.trim() : "")).filter(Boolean).join(separator)
 }
@@ -133,10 +195,14 @@ export function normalizeSurepassRcResponse(registrationNumber: string, raw: any
     cubicCapacity: firstString(inner, ["cubic_capacity", "cubicCapacity", "cc"]),
     horsePower: firstString(inner, ["horse_power", "horsePower", "hp"]),
     wheelBase: firstString(inner, ["wheelbase", "wheelBase", "wheel_base"]),
-    financier: firstString(inner, ["financer", "financier", "hypothecation"]),
+    financier: extractFinancier(inner),
     registrationAuthority: firstString(inner, [
       "registered_at",
       "registeredAt",
+      "registered_at_description",
+      "registeredAtDescription",
+      "rto_name",
+      "rtoName",
       "registration_authority",
       "registrationAuthority",
       "rto",

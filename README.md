@@ -25,6 +25,16 @@
   - `PAYMENT_QR_URL` (optional, defaults to `/payment-qr.png`)
   - `PAYMENT_AUTO_APPROVE` (`true` to immediately mark payments completed and auto-credit wallet)
 
+## Payment (Razorpay)
+
+- Configure:
+  - `RAZORPAY_KEY_ID`
+  - `RAZORPAY_KEY_SECRET`
+- If you already created tables before this change, run a one-time migration:
+  - `ALTER TABLE transactions MODIFY payment_method ENUM('wallet','upi','razorpay') NULL;`
+  - `ALTER TABLE transactions ADD COLUMN gateway VARCHAR(32) NULL, ADD COLUMN gateway_order_id VARCHAR(64) NULL, ADD COLUMN gateway_payment_id VARCHAR(64) NULL, ADD COLUMN gateway_signature VARCHAR(255) NULL;`
+  - `CREATE INDEX idx_tx_gateway_order ON transactions(gateway_order_id);`
+
 ## RC API integration
 
 - Default is mock mode (`RC_API_MODE=mock`).

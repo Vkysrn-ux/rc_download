@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { loadRazorpayCheckout } from "@/lib/razorpay-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -128,6 +129,81 @@ export default function WalletRechargePage() {
     }, 1200)
   }
 
+  const handleRazorpayRecharge = async () => {
+    setLoading(true)
+    setError("")
+
+    try {
+      const res = await fetch("/api/razorpay/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ purpose: "recharge", amount: numericAmount }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json?.error || "Unable to start payment. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      await loadRazorpayCheckout()
+      const RazorpayCtor = (window as any).Razorpay
+      if (!RazorpayCtor) throw new Error("Razorpay failed to load")
+
+      const rzp = new RazorpayCtor({
+        key: json.keyId,
+        amount: json.amount,
+        currency: json.currency,
+        name: json.name,
+        description: json.description,
+        order_id: json.orderId,
+        prefill: json.prefill ?? undefined,
+        modal: {
+          ondismiss: () => setLoading(false),
+        },
+        handler: async (response: any) => {
+          try {
+            setLoading(true)
+            const verifyRes = await fetch("/api/razorpay/verify", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ transactionId: json.transactionId, ...response }),
+            })
+            const verifyJson = await verifyRes.json().catch(() => ({}))
+            if (!verifyRes.ok) {
+              setError(verifyJson?.error || "Payment verification failed. Please contact support.")
+              setLoading(false)
+              return
+            }
+
+            await refreshUser()
+            setLoading(false)
+            setShowPaymentModal(false)
+            setSuccess(true)
+
+            setTimeout(() => {
+              router.push("/dashboard")
+            }, 1200)
+          } catch {
+            setError("Payment verification failed. Please try again.")
+            setLoading(false)
+          }
+        },
+      })
+
+      rzp.on("payment.failed", (resp: any) => {
+        const msg = resp?.error?.description || resp?.error?.reason || "Payment failed. Please try again."
+        setError(msg)
+        setLoading(false)
+      })
+
+      rzp.open()
+    } catch (e: any) {
+      setError(e?.message || "Unable to start payment. Please try again.")
+      setLoading(false)
+    }
+  }
+
   if (!isAuthenticated) return null
 
   return (
@@ -221,9 +297,21 @@ export default function WalletRechargePage() {
       <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-2xl">Pay via UPI</DialogTitle>
+            <DialogTitle className="text-2xl">Complete Payment</DialogTitle>
             <DialogDescription className="text-base">Pay ₹{amount} to recharge your wallet</DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-3">
+            <Button
+              onClick={handleRazorpayRecharge}
+              disabled={loading || !numericAmount || numericAmount <= 0}
+              className="w-full"
+              size="lg"
+            >
+              {loading ? "Opening..." : "Pay with Razorpay"}
+            </Button>
+            <div className="text-xs text-muted-foreground text-center">or pay via UPI (manual)</div>
+          </div>
 
           {!config?.upiId ? (
             <Alert variant="destructive">
@@ -270,7 +358,7 @@ export default function WalletRechargePage() {
               )}
 
               <Button onClick={handleConfirmPaid} disabled={loading} className="w-full" size="lg">
-                {loading ? "Saving..." : "I've Paid"}
+                {loading ? "Saving..." : "I've Paid (Manual)"}
               </Button>
               {!config.autoApprove && (
                 <p className="text-xs text-muted-foreground">

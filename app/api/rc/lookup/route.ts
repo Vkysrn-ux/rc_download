@@ -25,7 +25,23 @@ async function getCached(registrationNumber: string) {
     "SELECT rc_json FROM rc_documents WHERE registration_number = ? ORDER BY created_at DESC LIMIT 1",
     [registrationNumber],
   )
-  return rows[0]?.rc_json ?? null
+  const value = rows[0]?.rc_json ?? null
+  if (!value) return null
+  if (Buffer.isBuffer(value)) {
+    try {
+      return JSON.parse(value.toString("utf8"))
+    } catch {
+      return null
+    }
+  }
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
+  return value
 }
 
 async function storeResult(registrationNumber: string, userId: string | null, rcJson: any, provider: string, providerRef?: string | null) {
