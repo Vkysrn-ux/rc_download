@@ -2,6 +2,20 @@ import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/server/session"
 import { dbQuery } from "@/lib/server/db"
 
+function readIndexedEnv(baseName: string, index: number) {
+  if (index === 1) return process.env[baseName] ?? process.env[`${baseName}_1`]
+  return process.env[`${baseName}_${index}`]
+}
+
+function classifyRcVariant(baseUrl: string | null) {
+  const value = (baseUrl || "").toLowerCase()
+  if (!value) return "unknown"
+  if (value.includes("rc-full")) return "rc-full"
+  if (value.includes("rc-v2")) return "rc-v2"
+  if (value.includes("rc-lite")) return "rc-lite"
+  return "unknown"
+}
+
 export async function GET() {
   const user = await getCurrentUser()
   if (!user || user.role !== "admin") return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
@@ -15,6 +29,35 @@ export async function GET() {
   const [{ cacheReused }] = await dbQuery<{ cacheReused: string | number }>(
     "SELECT COUNT(*) AS cacheReused FROM rc_documents WHERE provider = 'cache'",
   )
+
+  const externalByProviderRef = await dbQuery<{ provider_ref: string | null; hits: string | number }>(
+    `SELECT provider_ref, COUNT(*) AS hits
+     FROM rc_documents
+     WHERE provider = 'external'
+     GROUP BY provider_ref
+     ORDER BY hits DESC`,
+  )
+
+  const externalByProvider = externalByProviderRef.map((r) => {
+    const providerRef = r.provider_ref ? String(r.provider_ref) : null
+    const index = providerRef ? Number(providerRef) : NaN
+    const baseUrl = Number.isFinite(index) && index > 0 ? readIndexedEnv("RC_API_BASE_URL", index) ?? null : null
+    const variant = classifyRcVariant(baseUrl)
+    return {
+      providerRef,
+      baseUrl,
+      variant,
+      hits: Number(r.hits),
+    }
+  })
+
+  const externalByVariantMap = new Map<string, number>()
+  for (const item of externalByProvider) {
+    externalByVariantMap.set(item.variant, (externalByVariantMap.get(item.variant) || 0) + item.hits)
+  }
+  const externalByVariant = Array.from(externalByVariantMap.entries())
+    .map(([variant, hits]) => ({ variant, hits }))
+    .sort((a, b) => b.hits - a.hits)
 
   const byVehicle = await dbQuery<{
     registration_number: string
@@ -85,6 +128,8 @@ export async function GET() {
       surepassHits: Number(surepassHits),
       cacheReused: Number(cacheReused),
     },
+    externalByVariant,
+    externalByProvider,
     byVehicle: byVehicle.map((r) => ({
       registrationNumber: r.registration_number,
       surepassHits: Number(r.surepass_hits),

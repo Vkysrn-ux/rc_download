@@ -13,6 +13,8 @@ type RcUsageResponse = {
   ok: boolean
   error?: string
   counts?: { totalLookups: number; surepassHits: number; cacheReused: number }
+  externalByVariant?: { variant: string; hits: number }[]
+  externalByProvider?: { providerRef: string | null; baseUrl: string | null; variant: string; hits: number }[]
   byVehicle?: { registrationNumber: string; surepassHits: number; cacheReused: number; total: number }[]
   byUser?: { id: string | null; name: string; email: string; surepassHits: number; cacheReused: number; total: number }[]
   recent?: {
@@ -31,6 +33,8 @@ export default function AdminApiUsagePage() {
   const [error, setError] = useState("")
   const [search, setSearch] = useState("")
   const [counts, setCounts] = useState({ totalLookups: 0, surepassHits: 0, cacheReused: 0 })
+  const [externalByVariant, setExternalByVariant] = useState<RcUsageResponse["externalByVariant"]>([])
+  const [externalByProvider, setExternalByProvider] = useState<RcUsageResponse["externalByProvider"]>([])
   const [byVehicle, setByVehicle] = useState<RcUsageResponse["byVehicle"]>([])
   const [byUser, setByUser] = useState<RcUsageResponse["byUser"]>([])
   const [recent, setRecent] = useState<RcUsageResponse["recent"]>([])
@@ -55,6 +59,8 @@ export default function AdminApiUsagePage() {
       return
     }
     setCounts(json.counts || { totalLookups: 0, surepassHits: 0, cacheReused: 0 })
+    setExternalByVariant(json.externalByVariant || [])
+    setExternalByProvider(json.externalByProvider || [])
     setByVehicle(json.byVehicle || [])
     setByUser(json.byUser || [])
     setRecent(json.recent || [])
@@ -148,6 +154,39 @@ export default function AdminApiUsagePage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="shadow-md">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl">External API Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(externalByVariant || []).length === 0 ? (
+                <div className="text-sm text-muted-foreground">No external hits yet</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(externalByVariant || []).map((v) => (
+                    <Badge key={v.variant} variant={v.variant === "unknown" ? "outline" : "default"}>
+                      {v.variant} {v.hits}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {(externalByProvider || []).length > 0 && (
+                <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+                  {(externalByProvider || []).map((p) => (
+                    <div key={p.providerRef || "unknown"} className="flex items-center justify-between gap-4">
+                      <div className="min-w-0 truncate">
+                        Provider {p.providerRef || "?"}: {p.variant}
+                        {p.baseUrl ? <span className="ml-2 font-mono">{p.baseUrl}</span> : null}
+                      </div>
+                      <div className="shrink-0">{p.hits}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="shadow-md">
             <CardHeader className="pb-3">
