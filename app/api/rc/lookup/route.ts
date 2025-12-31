@@ -38,9 +38,15 @@ export async function GET(req: Request) {
     const result = await lookupRc(registrationNumber)
     if (!result) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
-    await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider).catch(() => {})
+    await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider, result.providerRef).catch(() => {})
 
-    return NextResponse.json({ ok: true, registrationNumber: result.registrationNumber, data: result.data, provider: result.provider })
+    return NextResponse.json({
+      ok: true,
+      registrationNumber: result.registrationNumber,
+      data: result.data,
+      provider: result.provider,
+      providerRef: result.providerRef,
+    })
   } catch (error: any) {
     if (error instanceof ExternalApiError) {
       const status = error.status === 404 ? 404 : error.status === 401 || error.status === 403 ? 502 : 502
@@ -72,9 +78,15 @@ export async function POST(req: Request) {
     const result = await lookupRc(registrationNumber)
     if (!result) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
-    await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider).catch(() => {})
+    await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider, result.providerRef).catch(() => {})
 
-    return NextResponse.json({ ok: true, registrationNumber: result.registrationNumber, data: result.data, provider: result.provider })
+    return NextResponse.json({
+      ok: true,
+      registrationNumber: result.registrationNumber,
+      data: result.data,
+      provider: result.provider,
+      providerRef: result.providerRef,
+    })
   } catch (error: any) {
     if (error instanceof ExternalApiError) {
       const status = error.status === 404 ? 404 : error.status === 401 || error.status === 403 ? 502 : 502

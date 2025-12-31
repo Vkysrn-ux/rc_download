@@ -40,8 +40,9 @@
 - Default is mock mode (`RC_API_MODE=mock`).
 - To use your provider, set:
   - `RC_API_MODE=external`
-  - `RC_API_BASE_URL`
-  - `RC_API_KEY` (sent as `Authorization: Bearer ...`)
+  - `RC_API_BASE_URL` + `RC_API_KEY` (sent as `Authorization: Bearer ...`)
+  - Optional failover providers (tried automatically if one fails): `RC_API_BASE_URL_2`/`RC_API_KEY_2`, `RC_API_BASE_URL_3`/`RC_API_KEY_3`
+  - Optional timeout: `RC_API_TIMEOUT_MS` (default `15000`)
 - Surepass payload used by this app: `POST { "id_number": "MH12AB1234" }`
 
 ## Admin

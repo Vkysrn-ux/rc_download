@@ -28,12 +28,13 @@ export async function GET(req: Request) {
     const result = await lookupRc(txn.registration_number)
     if (!result) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
-    await storeRcResult(result.registrationNumber, txn.user_id ?? null, result.data, result.provider).catch(() => {})
+    await storeRcResult(result.registrationNumber, txn.user_id ?? null, result.data, result.provider, result.providerRef).catch(() => {})
     return NextResponse.json({
       ok: true,
       registrationNumber: result.registrationNumber,
       data: result.data,
       provider: result.provider,
+      providerRef: result.providerRef,
     })
   } catch (error: any) {
     if (error instanceof ExternalApiError) {
@@ -43,4 +44,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: error?.message || "Lookup failed" }, { status: 500 })
   }
 }
-

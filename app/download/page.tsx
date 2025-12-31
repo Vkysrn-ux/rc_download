@@ -47,7 +47,9 @@ function DownloadPageContent() {
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
-      const providerNote = typeof json?.provider === "string" ? ` (source: ${json.provider})` : ""
+      const providerName = typeof json?.provider === "string" ? json.provider : ""
+      const providerRef = typeof json?.providerRef === "string" && json.providerRef ? `#${json.providerRef}` : ""
+      const providerNote = providerName ? ` (source: ${providerName}${providerRef})` : ""
       setError((json?.error || "Registration number not found") + providerNote)
     } else {
       setRcData(json.data)
