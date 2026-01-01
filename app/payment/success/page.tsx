@@ -227,6 +227,46 @@ function PaymentSuccessContent() {
                   <div className="font-medium">{displayValue(rcData.engineNumber)}</div>
                 </div>
                 <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Color</div>
+                  <div className="font-medium">{displayValue(rcData.color)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Body Type</div>
+                  <div className="font-medium">{displayValue(rcData.bodyType)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Seating Capacity</div>
+                  <div className="font-medium">{displayValue(rcData.seatingCapacity)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Manufacturing Date</div>
+                  <div className="font-medium">{displayValue(rcData.manufacturingDate)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">No. of Cylinders</div>
+                  <div className="font-medium">{displayValue(rcData.cylinders)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Cubic Capacity</div>
+                  <div className="font-medium">{displayValue(rcData.cubicCapacity)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Horse Power</div>
+                  <div className="font-medium">{displayValue(rcData.horsePower)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Wheel Base</div>
+                  <div className="font-medium">{displayValue(rcData.wheelBase)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Unladen Weight</div>
+                  <div className="font-medium">{displayValue(rcData.unladenWeight)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Emission Norms</div>
+                  <div className="font-medium">{displayValue(rcData.emissionNorms)}</div>
+                </div>
+                <div className="space-y-1">
                   <div className="text-sm text-muted-foreground">Financier</div>
                   <div className="font-medium">{displayValue(rcData.financier)}</div>
                 </div>

@@ -15,12 +15,25 @@ type RcUsageResponse = {
   counts?: { totalLookups: number; surepassHits: number; cacheReused: number }
   externalByVariant?: { variant: string; hits: number }[]
   externalByProvider?: { providerRef: string | null; baseUrl: string | null; variant: string; hits: number }[]
+  cacheByVariant?: { variant: string; hits: number }[]
+  cacheByProvider?: { providerRef: string | null; baseUrl: string | null; variant: string; hits: number }[]
+  byProvider?: {
+    providerRef: string | null
+    baseUrl: string | null
+    variant: string
+    externalHits: number
+    cacheHits: number
+    totalHits: number
+  }[]
   byVehicle?: { registrationNumber: string; surepassHits: number; cacheReused: number; total: number }[]
   byUser?: { id: string | null; name: string; email: string; surepassHits: number; cacheReused: number; total: number }[]
   recent?: {
     id: string
     registrationNumber: string
     provider: "external" | "cache"
+    providerRef?: string | null
+    providerBaseUrl?: string | null
+    providerVariant?: string | null
     timestamp: string
     user: { id: string | null; name: string; email: string }
   }[]
@@ -35,6 +48,9 @@ export default function AdminApiUsagePage() {
   const [counts, setCounts] = useState({ totalLookups: 0, surepassHits: 0, cacheReused: 0 })
   const [externalByVariant, setExternalByVariant] = useState<RcUsageResponse["externalByVariant"]>([])
   const [externalByProvider, setExternalByProvider] = useState<RcUsageResponse["externalByProvider"]>([])
+  const [cacheByVariant, setCacheByVariant] = useState<RcUsageResponse["cacheByVariant"]>([])
+  const [cacheByProvider, setCacheByProvider] = useState<RcUsageResponse["cacheByProvider"]>([])
+  const [byProvider, setByProvider] = useState<RcUsageResponse["byProvider"]>([])
   const [byVehicle, setByVehicle] = useState<RcUsageResponse["byVehicle"]>([])
   const [byUser, setByUser] = useState<RcUsageResponse["byUser"]>([])
   const [recent, setRecent] = useState<RcUsageResponse["recent"]>([])
@@ -61,6 +77,9 @@ export default function AdminApiUsagePage() {
     setCounts(json.counts || { totalLookups: 0, surepassHits: 0, cacheReused: 0 })
     setExternalByVariant(json.externalByVariant || [])
     setExternalByProvider(json.externalByProvider || [])
+    setCacheByVariant(json.cacheByVariant || [])
+    setCacheByProvider(json.cacheByProvider || [])
+    setByProvider(json.byProvider || [])
     setByVehicle(json.byVehicle || [])
     setByUser(json.byUser || [])
     setRecent(json.recent || [])
@@ -190,6 +209,69 @@ export default function AdminApiUsagePage() {
 
           <Card className="shadow-md">
             <CardHeader className="pb-3">
+              <CardTitle className="text-xl">Cache Source Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(cacheByVariant || []).length === 0 ? (
+                <div className="text-sm text-muted-foreground">No cache reuse yet</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(cacheByVariant || []).map((v) => (
+                    <Badge key={v.variant} variant={v.variant === "unknown" ? "outline" : "secondary"}>
+                      {v.variant} {v.hits}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {(cacheByProvider || []).length > 0 && (
+                <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+                  {(cacheByProvider || []).map((p) => (
+                    <div key={p.providerRef || "unknown"} className="flex items-center justify-between gap-4">
+                      <div className="min-w-0 truncate">
+                        Source {p.providerRef || "?"}: {p.variant}
+                        {p.baseUrl ? <span className="ml-2 font-mono">{p.baseUrl}</span> : null}
+                      </div>
+                      <div className="shrink-0">{p.hits}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl">Total by Provider</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(byProvider || []).length === 0 ? (
+                <div className="text-sm text-muted-foreground">No data yet</div>
+              ) : (
+                <div className="space-y-2 text-xs">
+                  {(byProvider || []).map((p) => (
+                    <div key={p.providerRef || "unknown"} className="flex items-center justify-between gap-4 border-b py-2 last:border-0">
+                      <div className="min-w-0">
+                        <div className="truncate text-muted-foreground">
+                          Provider {p.providerRef || "?"}: {p.variant}
+                          {p.baseUrl ? <span className="ml-2 font-mono">{p.baseUrl}</span> : null}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary">Total {p.totalHits}</Badge>
+                          <Badge variant="default">External {p.externalHits}</Badge>
+                          <Badge variant="outline">Cache {p.cacheHits}</Badge>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-muted-foreground">{p.totalHits}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader className="pb-3">
               <CardTitle className="text-xl">Top Vehicles</CardTitle>
             </CardHeader>
             <CardContent>
@@ -268,13 +350,20 @@ export default function AdminApiUsagePage() {
                           <div className="flex items-center gap-2">
                             <div className="font-mono text-sm">{r.registrationNumber}</div>
                             <Badge variant={r.provider === "external" ? "default" : "outline"}>
-                              {r.provider === "external" ? "Surepass" : "Cache"}
+                              {r.provider === "external"
+                                ? `External${r.providerRef ? ` #${r.providerRef}` : ""}`
+                                : `Cache${r.providerRef ? ` ← #${r.providerRef}` : ""}`}
                             </Badge>
                           </div>
                           <div className="text-xs text-muted-foreground truncate">
                             {r.user.name}
                             {r.user.email ? ` (${r.user.email})` : ""}
                           </div>
+                          {r.providerBaseUrl ? (
+                            <div className="text-[10px] text-muted-foreground truncate font-mono">
+                              {(r.providerVariant || "unknown").toString()} {r.providerBaseUrl}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="text-xs text-muted-foreground">{new Date(r.timestamp).toLocaleString()}</div>
                       </div>

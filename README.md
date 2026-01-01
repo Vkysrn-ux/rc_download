@@ -42,8 +42,10 @@
   - `RC_API_MODE=external`
   - `RC_API_BASE_URL` + `RC_API_KEY` (sent as `Authorization: Bearer ...`)
   - Optional failover providers (tried automatically if one fails): `RC_API_BASE_URL_2`/`RC_API_KEY_2`, `RC_API_BASE_URL_3`/`RC_API_KEY_3`
+  - Optional final fallback (tried only if providers 1–3 fail): `RC_API_APNIRC_B2B_AUTHORIZATION` (sent as `Authorization: <value>`) and optional `RC_API_APNIRC_B2B_URL` (defaults to `https://api.apnirc.xyz/api/b2b/get-rc`)
   - Optional timeout: `RC_API_TIMEOUT_MS` (default `15000`)
 - Surepass payload used by this app: `POST { "id_number": "MH12AB1234" }`
+  - APNIRC B2B fallback payload: `POST { "vrn": "MH12AB1234" }`
 
 ## Admin
 

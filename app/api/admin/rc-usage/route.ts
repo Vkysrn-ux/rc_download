@@ -16,6 +16,14 @@ function classifyRcVariant(baseUrl: string | null) {
   return "unknown"
 }
 
+function resolveProviderBaseUrl(providerRef: string | null) {
+  if (!providerRef) return null
+  if (providerRef === "apnirc-b2b") return (process.env.RC_API_APNIRC_B2B_URL || "https://api.apnirc.xyz/api/b2b/get-rc").trim() || null
+  const index = Number(providerRef)
+  if (!Number.isFinite(index) || index <= 0) return null
+  return readIndexedEnv("RC_API_BASE_URL", index) ?? null
+}
+
 export async function GET() {
   const user = await getCurrentUser()
   if (!user || user.role !== "admin") return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
@@ -40,15 +48,24 @@ export async function GET() {
 
   const externalByProvider = externalByProviderRef.map((r) => {
     const providerRef = r.provider_ref ? String(r.provider_ref) : null
-    const index = providerRef ? Number(providerRef) : NaN
-    const baseUrl = Number.isFinite(index) && index > 0 ? readIndexedEnv("RC_API_BASE_URL", index) ?? null : null
+    const baseUrl = resolveProviderBaseUrl(providerRef)
     const variant = classifyRcVariant(baseUrl)
-    return {
-      providerRef,
-      baseUrl,
-      variant,
-      hits: Number(r.hits),
-    }
+    return { providerRef, baseUrl, variant, hits: Number(r.hits) }
+  })
+
+  const cacheByProviderRef = await dbQuery<{ provider_ref: string | null; hits: string | number }>(
+    `SELECT provider_ref, COUNT(*) AS hits
+     FROM rc_documents
+     WHERE provider = 'cache'
+     GROUP BY provider_ref
+     ORDER BY hits DESC`,
+  )
+
+  const cacheByProvider = cacheByProviderRef.map((r) => {
+    const providerRef = r.provider_ref ? String(r.provider_ref) : null
+    const baseUrl = resolveProviderBaseUrl(providerRef)
+    const variant = classifyRcVariant(baseUrl)
+    return { providerRef, baseUrl, variant, hits: Number(r.hits) }
   })
 
   const externalByVariantMap = new Map<string, number>()
@@ -58,6 +75,43 @@ export async function GET() {
   const externalByVariant = Array.from(externalByVariantMap.entries())
     .map(([variant, hits]) => ({ variant, hits }))
     .sort((a, b) => b.hits - a.hits)
+
+  const cacheByVariantMap = new Map<string, number>()
+  for (const item of cacheByProvider) {
+    cacheByVariantMap.set(item.variant, (cacheByVariantMap.get(item.variant) || 0) + item.hits)
+  }
+  const cacheByVariant = Array.from(cacheByVariantMap.entries())
+    .map(([variant, hits]) => ({ variant, hits }))
+    .sort((a, b) => b.hits - a.hits)
+
+  const configuredProviderRefs = new Set<string>()
+  for (let index = 1; index <= 3; index++) {
+    const baseUrl = readIndexedEnv("RC_API_BASE_URL", index)
+    if (baseUrl) configuredProviderRefs.add(String(index))
+  }
+  if ((process.env.RC_API_APNIRC_B2B_AUTHORIZATION || "").trim()) configuredProviderRefs.add("apnirc-b2b")
+
+  const byProviderMap = new Map<
+    string,
+    { providerRef: string | null; baseUrl: string | null; variant: string; externalHits: number; cacheHits: number; totalHits: number }
+  >()
+
+  function upsert(providerRef: string | null) {
+    const key = providerRef ?? "unknown"
+    const existing = byProviderMap.get(key)
+    if (existing) return existing
+    const baseUrl = resolveProviderBaseUrl(providerRef)
+    const variant = classifyRcVariant(baseUrl)
+    const created = { providerRef, baseUrl, variant, externalHits: 0, cacheHits: 0, totalHits: 0 }
+    byProviderMap.set(key, created)
+    return created
+  }
+
+  for (const providerRef of configuredProviderRefs) upsert(providerRef)
+  for (const item of externalByProvider) upsert(item.providerRef).externalHits += item.hits
+  for (const item of cacheByProvider) upsert(item.providerRef).cacheHits += item.hits
+  for (const value of byProviderMap.values()) value.totalHits = value.externalHits + value.cacheHits
+  const byProvider = Array.from(byProviderMap.values()).sort((a, b) => b.totalHits - a.totalHits)
 
   const byVehicle = await dbQuery<{
     registration_number: string
@@ -102,6 +156,7 @@ export async function GET() {
     id: string
     registration_number: string
     provider: "external" | "cache"
+    provider_ref: string | null
     created_at: string
     user_id: string | null
     user_name: string | null
@@ -110,6 +165,7 @@ export async function GET() {
     `SELECT d.id,
             d.registration_number,
             d.provider,
+            d.provider_ref,
             d.created_at,
             u.id AS user_id,
             u.name AS user_name,
@@ -130,6 +186,9 @@ export async function GET() {
     },
     externalByVariant,
     externalByProvider,
+    cacheByVariant,
+    cacheByProvider,
+    byProvider,
     byVehicle: byVehicle.map((r) => ({
       registrationNumber: r.registration_number,
       surepassHits: Number(r.surepass_hits),
@@ -148,6 +207,9 @@ export async function GET() {
       id: r.id,
       registrationNumber: r.registration_number,
       provider: r.provider,
+      providerRef: r.provider_ref ? String(r.provider_ref) : null,
+      providerBaseUrl: resolveProviderBaseUrl(r.provider_ref ? String(r.provider_ref) : null),
+      providerVariant: classifyRcVariant(resolveProviderBaseUrl(r.provider_ref ? String(r.provider_ref) : null)),
       timestamp: r.created_at,
       user: r.user_id
         ? { id: r.user_id, name: r.user_name ?? "", email: r.user_email ?? "" }
