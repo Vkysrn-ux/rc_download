@@ -11,6 +11,13 @@ export class ExternalApiError extends Error {
   }
 }
 
+export type RcLookupProgressEvent =
+  | { type: "cache_hit" }
+  | { type: "mock_hit" }
+  | { type: "provider_attempt"; providerIndex: number }
+  | { type: "provider_failed"; providerIndex: number; status: number; message: string }
+  | { type: "provider_succeeded"; providerIndex: number }
+
 export function normalizeRegistration(value: string) {
   return value.toUpperCase().replace(/\s/g, "")
 }
@@ -212,18 +219,34 @@ async function fetchFromProvider(provider: RcProvider, registrationNumber: strin
   return body
 }
 
-export async function lookupRc(registrationNumberRaw: string) {
+export async function lookupRc(
+  registrationNumberRaw: string,
+  options?: {
+    onProgress?: (event: RcLookupProgressEvent) => void
+  },
+) {
   const registrationNumber = normalizeRegistration(registrationNumberRaw)
+  const emit = options?.onProgress
+    ? (event: RcLookupProgressEvent) => {
+        try {
+          options.onProgress?.(event)
+        } catch {
+          // ignore observer errors
+        }
+      }
+    : null
 
   const cachedResult = await getCached(registrationNumber)
   const cached = cachedResult?.rcJson ?? null
   const cachedProviderRef = cachedResult?.sourceProviderRef ?? null
   if (cached) {
     if (isNormalizedRcData(cached) && !hasMissingCriticalFields(cached)) {
+      emit?.({ type: "cache_hit" })
       return { registrationNumber, data: cached, provider: "cache" as const, providerRef: cachedProviderRef }
     }
     const normalizedCached = normalizeSurepassRcResponse(registrationNumber, cached)
     if (normalizedCached && !hasMissingCriticalFields(normalizedCached)) {
+      emit?.({ type: "cache_hit" })
       return { registrationNumber, data: normalizedCached, provider: "cache" as const, providerRef: cachedProviderRef }
     }
   }
@@ -235,13 +258,17 @@ export async function lookupRc(registrationNumberRaw: string) {
 
   if (mode === "mock" || !hasExternal) {
     const data = mockRCData[registrationNumber]
-    if (data) return { registrationNumber, data, provider: "mock" as const, providerRef: null }
+    if (data) {
+      emit?.({ type: "mock_hit" })
+      return { registrationNumber, data, provider: "mock" as const, providerRef: null }
+    }
     if (!hasExternal) return null
   }
 
   const errors: ExternalApiError[] = []
   for (const provider of providers) {
     try {
+      emit?.({ type: "provider_attempt", providerIndex: provider.index })
       const raw = await fetchFromProvider(provider, registrationNumber)
       const normalized = isNormalizedRcData(raw) ? raw : normalizeSurepassRcResponse(registrationNumber, raw)
 
@@ -264,15 +291,23 @@ export async function lookupRc(registrationNumberRaw: string) {
         throw new ExternalApiError(502, `RC provider #${provider.index} returned unsupported response format${detail}`)
       }
 
+      emit?.({ type: "provider_succeeded", providerIndex: provider.index })
       return { registrationNumber, data: normalized, provider: "external" as const, providerRef: String(provider.index) }
     } catch (error: any) {
-      if (error instanceof ExternalApiError) errors.push(error)
-      else errors.push(new ExternalApiError(502, `RC provider #${provider.index} failed: ${error?.message || "error"}`))
+      if (error instanceof ExternalApiError) {
+        errors.push(error)
+        emit?.({ type: "provider_failed", providerIndex: provider.index, status: error.status, message: error.message })
+      } else {
+        const message = error?.message || "error"
+        errors.push(new ExternalApiError(502, `RC provider #${provider.index} failed: ${message}`))
+        emit?.({ type: "provider_failed", providerIndex: provider.index, status: 502, message })
+      }
     }
   }
 
   if (apnircB2bFallback) {
     try {
+      emit?.({ type: "provider_attempt", providerIndex: apnircB2bFallback.index })
       const raw = await fetchFromProvider(apnircB2bFallback, registrationNumber)
       const normalized = isNormalizedRcData(raw) ? raw : normalizeSurepassRcResponse(registrationNumber, raw)
 
@@ -293,10 +328,17 @@ export async function lookupRc(registrationNumberRaw: string) {
         throw new ExternalApiError(502, `RC provider #${apnircB2bFallback.index} returned unsupported response format${detail}`)
       }
 
+      emit?.({ type: "provider_succeeded", providerIndex: apnircB2bFallback.index })
       return { registrationNumber, data: normalized, provider: "external" as const, providerRef: "apnirc-b2b" }
     } catch (error: any) {
-      if (error instanceof ExternalApiError) errors.push(error)
-      else errors.push(new ExternalApiError(502, `RC provider #${apnircB2bFallback.index} failed: ${error?.message || "error"}`))
+      if (error instanceof ExternalApiError) {
+        errors.push(error)
+        emit?.({ type: "provider_failed", providerIndex: apnircB2bFallback.index, status: error.status, message: error.message })
+      } else {
+        const message = error?.message || "error"
+        errors.push(new ExternalApiError(502, `RC provider #${apnircB2bFallback.index} failed: ${message}`))
+        emit?.({ type: "provider_failed", providerIndex: apnircB2bFallback.index, status: 502, message })
+      }
     }
   }
 

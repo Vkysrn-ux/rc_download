@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, FileText, Search, DownloadIcon } from "lucide-react"
 import Link from "next/link"
+import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
 
 function DownloadPageContent() {
   const router = useRouter()
@@ -18,6 +19,8 @@ function DownloadPageContent() {
   const [rcData, setRcData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [apiSteps, setApiSteps] = useState<RcApiStepStatus[] | null>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
 
   const price = isAuthenticated ? 20 : 30
 
@@ -27,35 +30,90 @@ function DownloadPageContent() {
     return text ? text : "—"
   }
 
-  const handleSearch = async () => {
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close()
+      eventSourceRef.current = null
+    }
+  }, [])
+
+  const handleSearch = () => {
     setError("")
     setRcData(null)
+    setApiSteps(["active", "pending", "pending", "pending"])
     setLoading(true)
 
     const regNumber = registrationNumber.toUpperCase().replace(/\s/g, "")
+    setRegistrationNumber(regNumber)
 
     if (isAuthenticated && user && user.walletBalance < price) {
+      eventSourceRef.current?.close()
+      eventSourceRef.current = null
+      setApiSteps(null)
       setLoading(false)
       router.push(`/payment/confirm?registration=${encodeURIComponent(regNumber)}&source=upi`)
       return
     }
 
-    const res = await fetch("/api/rc/lookup", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ registrationNumber: regNumber }),
-    })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      const providerName = typeof json?.provider === "string" ? json.provider : ""
-      const providerRef = typeof json?.providerRef === "string" && json.providerRef ? `#${json.providerRef}` : ""
-      const providerNote = providerName ? ` (source: ${providerName}${providerRef})` : ""
-      setError((json?.error || "Registration number not found") + providerNote)
-    } else {
-      setRcData(json.data)
+    eventSourceRef.current?.close()
+    const source = new EventSource(`/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(regNumber)}`)
+    eventSourceRef.current = source
+
+    const markActive = (stepIndex: number) => {
+      setApiSteps((prev) => {
+        const next = (prev ?? ["pending", "pending", "pending", "pending"]).slice(0, 4) as RcApiStepStatus[]
+        for (let i = 0; i < next.length; i++) {
+          if (i !== stepIndex && next[i] === "active") next[i] = "pending"
+        }
+        next[stepIndex] = "active"
+        return next
+      })
     }
 
-    setLoading(false)
+    const markState = (stepIndex: number, state: RcApiStepStatus) => {
+      setApiSteps((prev) => {
+        const next = (prev ?? ["pending", "pending", "pending", "pending"]).slice(0, 4) as RcApiStepStatus[]
+        next[stepIndex] = state
+        return next
+      })
+    }
+
+    source.addEventListener("progress", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data || "{}")
+      const stepIndex = Number(payload?.stepIndex)
+      const state = String(payload?.state || "")
+      if (!Number.isFinite(stepIndex) || stepIndex < 0 || stepIndex > 3) return
+      if (state === "active") markActive(stepIndex)
+      else if (state === "failure") markState(stepIndex, "failure")
+      else if (state === "success") markState(stepIndex, "success")
+    })
+
+    source.addEventListener("done", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data || "{}")
+      setRcData(payload?.data ?? null)
+      setLoading(false)
+      source.close()
+    })
+
+    source.addEventListener("not_found", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data || "{}")
+      setError(payload?.error || "Registration number not found")
+      setLoading(false)
+      source.close()
+    })
+
+    source.addEventListener("server_error", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data || "{}")
+      setError(payload?.error || "Lookup failed")
+      setLoading(false)
+      source.close()
+    })
+
+    source.onerror = () => {
+      setError("Lookup failed")
+      setLoading(false)
+      source.close()
+    }
   }
 
   const handleProceedToPayment = () => {
@@ -132,6 +190,7 @@ function DownloadPageContent() {
                 </div>
                 <p className="text-sm text-muted-foreground">Try: MH12AB1234 or DL01CD5678</p>
               </div>
+              {(loading || apiSteps) && <RcApiProgressChecklist active={loading} steps={apiSteps} />}
             </CardContent>
           </Card>
 

@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState, Suspense } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, Home, FileImage, FileText } from "lucide-react"
 import { RCDocumentTemplate } from "@/components/rc-document-template"
+import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 
@@ -21,9 +22,12 @@ function PaymentSuccessContent() {
   const [downloading, setDownloading] = useState(false)
   const [downloadType, setDownloadType] = useState<"image" | "pdf" | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [rcLoading, setRcLoading] = useState(false)
   const [rcData, setRcData] = useState<any | null>(null)
   const [rcError, setRcError] = useState<string>("")
   const [downloadError, setDownloadError] = useState<string>("")
+  const [apiSteps, setApiSteps] = useState<RcApiStepStatus[] | null>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
 
   const displayValue = (value: any) => {
     if (value === null || value === undefined) return "—"
@@ -32,27 +36,84 @@ function PaymentSuccessContent() {
   }
 
   useEffect(() => {
-    let cancelled = false
-    async function run() {
-      if (!registration) return
-      setRcError("")
-      const res = transactionId
-        ? await fetch(`/api/rc/view?transactionId=${encodeURIComponent(transactionId)}`)
-        : await fetch(`/api/rc/lookup?registrationNumber=${encodeURIComponent(registration)}`)
-      const json = await res.json().catch(() => ({}))
-      if (cancelled) return
-      if (!res.ok) {
-        setRcData(null)
-        setRcError(json?.error || "RC data not found")
-      } else {
-        setRcData(json.data)
-      }
+    if (!registration) return
+
+    setRcLoading(true)
+    setRcError("")
+    setApiSteps(["active", "pending", "pending", "pending"])
+
+    eventSourceRef.current?.close()
+    const url = transactionId
+      ? `/api/rc/view/stream?transactionId=${encodeURIComponent(transactionId)}`
+      : `/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(registration)}`
+    const source = new EventSource(url)
+    eventSourceRef.current = source
+
+    const markActive = (stepIndex: number) => {
+      setApiSteps((prev) => {
+        const next = (prev ?? ["pending", "pending", "pending", "pending"]).slice(0, 4) as RcApiStepStatus[]
+        for (let i = 0; i < next.length; i++) {
+          if (i !== stepIndex && next[i] === "active") next[i] = "pending"
+        }
+        next[stepIndex] = "active"
+        return next
+      })
     }
-    run()
+
+    const markState = (stepIndex: number, state: RcApiStepStatus) => {
+      setApiSteps((prev) => {
+        const next = (prev ?? ["pending", "pending", "pending", "pending"]).slice(0, 4) as RcApiStepStatus[]
+        next[stepIndex] = state
+        return next
+      })
+    }
+
+    source.addEventListener("progress", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data || "{}")
+      const stepIndex = Number(payload?.stepIndex)
+      const state = String(payload?.state || "")
+      if (!Number.isFinite(stepIndex) || stepIndex < 0 || stepIndex > 3) return
+      if (state === "active") markActive(stepIndex)
+      else if (state === "failure") markState(stepIndex, "failure")
+      else if (state === "success") markState(stepIndex, "success")
+    })
+
+    source.addEventListener("done", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data || "{}")
+      setRcData(payload?.data ?? null)
+      setRcLoading(false)
+      source.close()
+    })
+
+    source.addEventListener("not_found", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data || "{}")
+      setRcData(null)
+      setRcError(payload?.error || "RC data not found")
+      setRcLoading(false)
+      source.close()
+    })
+
+    source.addEventListener("server_error", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data || "{}")
+      setRcData(null)
+      setRcError(payload?.error || "RC data not found")
+      const status = Number(payload?.status)
+      if (status === 400 || status === 402) setApiSteps(null)
+      setRcLoading(false)
+      source.close()
+    })
+
+    source.onerror = () => {
+      setRcData(null)
+      setRcError("RC data not found")
+      setRcLoading(false)
+      source.close()
+    }
+
     return () => {
-      cancelled = true
+      source.close()
     }
-  }, [registration])
+  }, [registration, transactionId])
 
   const captureCombinedCanvas = async () => {
     const element = document.getElementById("rc-combined-capture")
@@ -188,6 +249,7 @@ function PaymentSuccessContent() {
           <CardContent>
             {rcError && <div className="text-sm text-destructive">{rcError}</div>}
             {downloadError && <div className="text-sm text-destructive mt-2">{downloadError}</div>}
+            {(rcLoading || apiSteps) && <RcApiProgressChecklist active={rcLoading} steps={apiSteps} className="mt-3" />}
             {rcData && (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-1">
