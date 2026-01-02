@@ -51,6 +51,7 @@ export async function GET(req: Request) {
         }
 
         const result = await lookupRc(registrationNumber, {
+          userId: user?.id ?? null,
           onProgress: (event: RcLookupProgressEvent) => {
             if (event.type === "provider_attempt") {
               writeEvent(controller, "progress", { stepIndex: providerIndexToStepIndex(event.providerIndex), state: "active" })

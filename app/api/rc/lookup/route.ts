@@ -35,7 +35,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const result = await lookupRc(registrationNumber)
+    const result = await lookupRc(registrationNumber, { userId: user?.id ?? null })
     if (!result) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
     await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider, result.providerRef).catch(() => {})
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const result = await lookupRc(registrationNumber)
+    const result = await lookupRc(registrationNumber, { userId: user?.id ?? null })
     if (!result) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
     await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider, result.providerRef).catch(() => {})

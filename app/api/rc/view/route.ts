@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const result = await lookupRc(txn.registration_number)
+    const result = await lookupRc(txn.registration_number, { userId: txn.user_id ?? null })
     if (!result) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
     await storeRcResult(result.registrationNumber, txn.user_id ?? null, result.data, result.provider, result.providerRef).catch(() => {})

@@ -32,6 +32,52 @@ type RcProvider = {
   responseType: "surepass" | "raw"
 }
 
+function classifyRcVariantFromUrl(baseUrl: string | null) {
+  const value = (baseUrl || "").toLowerCase()
+  if (!value) return "unknown"
+  if (value.includes("apnirc")) return "apnirc"
+  if (value.includes("rc-full")) return "rc-full"
+  if (value.includes("rc-v2")) return "rc-v2"
+  if (value.includes("rc-lite")) return "rc-lite"
+  return "unknown"
+}
+
+function providerRefForCall(provider: RcProvider) {
+  if (provider.index === 4) return "apnirc-b2b"
+  return String(provider.index)
+}
+
+async function logRcApiCall(args: {
+  userId: string | null
+  registrationNumber: string
+  providerRef: string | null
+  baseUrl: string | null
+  outcome: "success" | "failure"
+  httpStatus: number | null
+  errorMessage: string | null
+}) {
+  try {
+    const id = crypto.randomUUID()
+    const variant = classifyRcVariantFromUrl(args.baseUrl)
+    await dbQuery(
+      "INSERT INTO rc_api_calls (id, user_id, registration_number, provider_ref, base_url, variant, outcome, http_status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        id,
+        args.userId,
+        args.registrationNumber,
+        args.providerRef,
+        args.baseUrl,
+        variant,
+        args.outcome,
+        args.httpStatus,
+        args.errorMessage ? String(args.errorMessage).slice(0, 255) : null,
+      ],
+    )
+  } catch {
+    // Best-effort; ignore missing table or other DB errors.
+  }
+}
+
 function isNormalizedRcData(value: any): value is NormalizedRCData {
   if (!value || typeof value !== "object") return false
   return (
@@ -223,6 +269,7 @@ export async function lookupRc(
   registrationNumberRaw: string,
   options?: {
     onProgress?: (event: RcLookupProgressEvent) => void
+    userId?: string | null
   },
 ) {
   const registrationNumber = normalizeRegistration(registrationNumberRaw)
@@ -292,15 +339,42 @@ export async function lookupRc(
       }
 
       emit?.({ type: "provider_succeeded", providerIndex: provider.index })
+      void logRcApiCall({
+        userId: options?.userId ?? null,
+        registrationNumber,
+        providerRef: providerRefForCall(provider),
+        baseUrl: provider.baseUrl,
+        outcome: "success",
+        httpStatus: 200,
+        errorMessage: null,
+      })
       return { registrationNumber, data: normalized, provider: "external" as const, providerRef: String(provider.index) }
     } catch (error: any) {
       if (error instanceof ExternalApiError) {
         errors.push(error)
         emit?.({ type: "provider_failed", providerIndex: provider.index, status: error.status, message: error.message })
+        void logRcApiCall({
+          userId: options?.userId ?? null,
+          registrationNumber,
+          providerRef: providerRefForCall(provider),
+          baseUrl: provider.baseUrl,
+          outcome: "failure",
+          httpStatus: Number.isFinite(error.status) ? Number(error.status) : 502,
+          errorMessage: error.message,
+        })
       } else {
         const message = error?.message || "error"
         errors.push(new ExternalApiError(502, `RC provider #${provider.index} failed: ${message}`))
         emit?.({ type: "provider_failed", providerIndex: provider.index, status: 502, message })
+        void logRcApiCall({
+          userId: options?.userId ?? null,
+          registrationNumber,
+          providerRef: providerRefForCall(provider),
+          baseUrl: provider.baseUrl,
+          outcome: "failure",
+          httpStatus: 502,
+          errorMessage: message,
+        })
       }
     }
   }
@@ -329,15 +403,42 @@ export async function lookupRc(
       }
 
       emit?.({ type: "provider_succeeded", providerIndex: apnircB2bFallback.index })
+      void logRcApiCall({
+        userId: options?.userId ?? null,
+        registrationNumber,
+        providerRef: providerRefForCall(apnircB2bFallback),
+        baseUrl: apnircB2bFallback.baseUrl,
+        outcome: "success",
+        httpStatus: 200,
+        errorMessage: null,
+      })
       return { registrationNumber, data: normalized, provider: "external" as const, providerRef: "apnirc-b2b" }
     } catch (error: any) {
       if (error instanceof ExternalApiError) {
         errors.push(error)
         emit?.({ type: "provider_failed", providerIndex: apnircB2bFallback.index, status: error.status, message: error.message })
+        void logRcApiCall({
+          userId: options?.userId ?? null,
+          registrationNumber,
+          providerRef: providerRefForCall(apnircB2bFallback),
+          baseUrl: apnircB2bFallback.baseUrl,
+          outcome: "failure",
+          httpStatus: Number.isFinite(error.status) ? Number(error.status) : 502,
+          errorMessage: error.message,
+        })
       } else {
         const message = error?.message || "error"
         errors.push(new ExternalApiError(502, `RC provider #${apnircB2bFallback.index} failed: ${message}`))
         emit?.({ type: "provider_failed", providerIndex: apnircB2bFallback.index, status: 502, message })
+        void logRcApiCall({
+          userId: options?.userId ?? null,
+          registrationNumber,
+          providerRef: providerRefForCall(apnircB2bFallback),
+          baseUrl: apnircB2bFallback.baseUrl,
+          outcome: "failure",
+          httpStatus: 502,
+          errorMessage: message,
+        })
       }
     }
   }

@@ -96,3 +96,21 @@ CREATE TABLE IF NOT EXISTS rc_documents (
   KEY idx_rc_user_created (user_id, created_at),
   CONSTRAINT fk_rc_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS rc_api_calls (
+  id CHAR(36) NOT NULL,
+  user_id CHAR(36) NULL,
+  registration_number VARCHAR(32) NOT NULL,
+  provider_ref VARCHAR(255) NULL,
+  base_url VARCHAR(1024) NULL,
+  variant VARCHAR(32) NOT NULL DEFAULT 'unknown',
+  outcome ENUM('success','failure') NOT NULL,
+  http_status INT NULL,
+  error_message VARCHAR(255) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_rc_api_calls_variant_created (variant, created_at),
+  KEY idx_rc_api_calls_user_created (user_id, created_at),
+  KEY idx_rc_api_calls_reg_created (registration_number, created_at),
+  CONSTRAINT fk_rc_api_calls_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;

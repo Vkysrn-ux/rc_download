@@ -28,6 +28,38 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user || user.role !== "admin") return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
 
+  let apiCallsByVariant: { variant: string; hits: number; successes: number; failures: number }[] = []
+  try {
+    const rows = await dbQuery<{
+      variant: string
+      hits: string | number
+      successes: string | number
+      failures: string | number
+    }>(
+      `SELECT variant,
+              COUNT(*) AS hits,
+              SUM(outcome = 'success') AS successes,
+              SUM(outcome = 'failure') AS failures
+       FROM rc_api_calls
+       GROUP BY variant`,
+    )
+    apiCallsByVariant = rows.map((r) => ({
+      variant: String(r.variant || "unknown"),
+      hits: Number(r.hits),
+      successes: Number(r.successes),
+      failures: Number(r.failures),
+    }))
+  } catch {
+    apiCallsByVariant = []
+  }
+
+  const apiCallOrder = ["rc-v2", "rc-full", "rc-lite", "apnirc"]
+  const apiCallLabel: Record<string, string> = { "rc-v2": "RC-v2", "rc-full": "rc-full", "rc-lite": "rc-lite", apnirc: "apnirc" }
+  const apiCalls = apiCallOrder.map((variant) => {
+    const row = apiCallsByVariant.find((r) => r.variant === variant)
+    return { name: apiCallLabel[variant], hits: row?.hits ?? 0, successes: row?.successes ?? 0, failures: row?.failures ?? 0 }
+  })
+
   const [{ totalLookups }] = await dbQuery<{ totalLookups: string | number }>(
     "SELECT COUNT(*) AS totalLookups FROM rc_documents WHERE provider IN ('external', 'cache')",
   )
@@ -179,6 +211,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
+    apiCalls,
     counts: {
       totalLookups: Number(totalLookups),
       surepassHits: Number(surepassHits),

@@ -12,6 +12,7 @@ import { FileText, ArrowLeft, LogOut, Cloud, RefreshCcw, Search } from "lucide-r
 type RcUsageResponse = {
   ok: boolean
   error?: string
+  apiCalls?: { name: string; hits: number; successes: number; failures: number }[]
   counts?: { totalLookups: number; surepassHits: number; cacheReused: number }
   externalByVariant?: { variant: string; hits: number }[]
   externalByProvider?: { providerRef: string | null; baseUrl: string | null; variant: string; hits: number }[]
@@ -46,6 +47,7 @@ export default function AdminApiUsagePage() {
   const [error, setError] = useState("")
   const [search, setSearch] = useState("")
   const [counts, setCounts] = useState({ totalLookups: 0, surepassHits: 0, cacheReused: 0 })
+  const [apiCalls, setApiCalls] = useState<RcUsageResponse["apiCalls"]>([])
   const [externalByVariant, setExternalByVariant] = useState<RcUsageResponse["externalByVariant"]>([])
   const [externalByProvider, setExternalByProvider] = useState<RcUsageResponse["externalByProvider"]>([])
   const [cacheByVariant, setCacheByVariant] = useState<RcUsageResponse["cacheByVariant"]>([])
@@ -74,6 +76,7 @@ export default function AdminApiUsagePage() {
       setLoading(false)
       return
     }
+    setApiCalls(json.apiCalls || [])
     setCounts(json.counts || { totalLookups: 0, surepassHits: 0, cacheReused: 0 })
     setExternalByVariant(json.externalByVariant || [])
     setExternalByProvider(json.externalByProvider || [])
@@ -133,11 +136,11 @@ export default function AdminApiUsagePage() {
         <div className="max-w-7xl mx-auto space-y-6">
           {error && <div className="text-sm text-destructive">{error}</div>}
 
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Surepass Hits</CardTitle>
+           <div className="grid md:grid-cols-3 gap-6">
+             <Card className="shadow-md hover:shadow-lg transition-shadow">
+               <CardHeader className="pb-3">
+                 <div className="flex items-center justify-between">
+                   <CardTitle className="text-sm font-medium text-muted-foreground">Surepass Hits</CardTitle>
                   <Cloud className="h-5 w-5 text-sky-600" />
                 </div>
               </CardHeader>
@@ -170,14 +173,33 @@ export default function AdminApiUsagePage() {
               <CardContent>
                 <div className="text-3xl font-bold">{counts.totalLookups}</div>
                 <p className="text-xs text-muted-foreground mt-1">External + cache</p>
-              </CardContent>
-            </Card>
-          </div>
+               </CardContent>
+             </Card>
+           </div>
 
-          <Card className="shadow-md">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl">External API Breakdown</CardTitle>
-            </CardHeader>
+           <div className="grid md:grid-cols-4 gap-6">
+             {(apiCalls || []).map((api) => (
+               <Card key={api.name} className="shadow-md hover:shadow-lg transition-shadow">
+                 <CardHeader className="pb-3">
+                   <div className="flex items-center justify-between">
+                     <CardTitle className="text-sm font-medium text-muted-foreground">{api.name} Hits</CardTitle>
+                     <Cloud className="h-5 w-5 text-sky-600" />
+                   </div>
+                 </CardHeader>
+                 <CardContent>
+                   <div className="text-3xl font-bold">{api.hits}</div>
+                   <p className="text-xs text-muted-foreground mt-1">
+                     Success {api.successes} · Failed {api.failures}
+                   </p>
+                 </CardContent>
+               </Card>
+             ))}
+           </div>
+
+           <Card className="shadow-md">
+             <CardHeader className="pb-3">
+               <CardTitle className="text-xl">External API Breakdown</CardTitle>
+             </CardHeader>
             <CardContent>
               {(externalByVariant || []).length === 0 ? (
                 <div className="text-sm text-muted-foreground">No external hits yet</div>
