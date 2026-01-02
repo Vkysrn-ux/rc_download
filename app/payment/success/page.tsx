@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, Home, FileImage, FileText } from "lucide-react"
+import { Home, FileImage, FileText } from "lucide-react"
 import { RCDocumentTemplate } from "@/components/rc-document-template"
 import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
+import { RcDownloadStepper } from "@/components/rc-download-stepper"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 
@@ -21,19 +22,12 @@ function PaymentSuccessContent() {
   const transactionId = searchParams.get("transactionId") || ""
   const [downloading, setDownloading] = useState(false)
   const [downloadType, setDownloadType] = useState<"image" | "pdf" | null>(null)
-  const [showPreview, setShowPreview] = useState(false)
   const [rcLoading, setRcLoading] = useState(false)
   const [rcData, setRcData] = useState<any | null>(null)
   const [rcError, setRcError] = useState<string>("")
   const [downloadError, setDownloadError] = useState<string>("")
   const [apiSteps, setApiSteps] = useState<RcApiStepStatus[] | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
-
-  const displayValue = (value: any) => {
-    if (value === null || value === undefined) return "—"
-    const text = String(value).trim()
-    return text ? text : "—"
-  }
 
   useEffect(() => {
     if (!registration) return
@@ -230,133 +224,30 @@ function PaymentSuccessContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4">
       <div className="max-w-[1400px] mx-auto space-y-6 py-8">
-        <div className="text-center space-y-4">
-          <div className="flex justify-center">
-            <div className="p-4 bg-green-100 rounded-full">
-              <CheckCircle className="h-16 w-16 text-green-600" />
-            </div>
-          </div>
-          <h1 className="text-3xl font-bold text-balance">Payment Successful!</h1>
-          <p className="text-muted-foreground">Your RC document is ready to download</p>
+        <div className="max-w-5xl mx-auto">
+          <RcDownloadStepper step={3} />
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Document Details</CardTitle>
+            <CardTitle>Document Preview</CardTitle>
           </CardHeader>
           <CardContent>
             {rcError && <div className="text-sm text-destructive">{rcError}</div>}
             {downloadError && <div className="text-sm text-destructive mt-2">{downloadError}</div>}
             {(rcLoading || apiSteps) && <RcApiProgressChecklist active={rcLoading} steps={apiSteps} className="mt-3" />}
             {rcData && (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Registration Number</div>
-                  <div className="font-medium">{displayValue(rcData.registrationNumber)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Owner Name</div>
-                  <div className="font-medium">{displayValue(rcData.ownerName)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Vehicle Class</div>
-                  <div className="font-medium">{displayValue(rcData.vehicleClass)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Maker</div>
-                  <div className="font-medium">{displayValue(rcData.maker)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Model</div>
-                  <div className="font-medium">{displayValue(rcData.model)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Fuel Type</div>
-                  <div className="font-medium">{displayValue(rcData.fuelType)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Registration Date</div>
-                  <div className="font-medium">{displayValue(rcData.registrationDate)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Chassis Number</div>
-                  <div className="font-medium">{displayValue(rcData.chassisNumber)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Engine Number</div>
-                  <div className="font-medium">{displayValue(rcData.engineNumber)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Color</div>
-                  <div className="font-medium">{displayValue(rcData.color)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Body Type</div>
-                  <div className="font-medium">{displayValue(rcData.bodyType)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Seating Capacity</div>
-                  <div className="font-medium">{displayValue(rcData.seatingCapacity)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Manufacturing Date</div>
-                  <div className="font-medium">{displayValue(rcData.manufacturingDate)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">No. of Cylinders</div>
-                  <div className="font-medium">{displayValue(rcData.cylinders)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Cubic Capacity</div>
-                  <div className="font-medium">{displayValue(rcData.cubicCapacity)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Horse Power</div>
-                  <div className="font-medium">{displayValue(rcData.horsePower)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Wheel Base</div>
-                  <div className="font-medium">{displayValue(rcData.wheelBase)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Unladen Weight</div>
-                  <div className="font-medium">{displayValue(rcData.unladenWeight)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Emission Norms</div>
-                  <div className="font-medium">{displayValue(rcData.emissionNorms)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Financier</div>
-                  <div className="font-medium">{displayValue(rcData.financier)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Registration Authority</div>
-                  <div className="font-medium">{displayValue(rcData.registrationAuthority)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Registration Validity</div>
-                  <div className="font-medium">{displayValue(rcData.registrationValidity)}</div>
-                </div>
-                <div className="space-y-1 sm:col-span-2 lg:col-span-3">
-                  <div className="text-sm text-muted-foreground">Address</div>
-                  <div className="font-medium">{displayValue(rcData.address)}</div>
+              <div className="mt-4 rounded-xl border bg-white p-2 md:p-4 shadow-sm overflow-x-auto">
+                <div className="flex min-w-max justify-center gap-3">
+                  <RCDocumentTemplate data={rcData} side="front" id="rc-front-preview" />
+                  <RCDocumentTemplate data={rcData} side="back" id="rc-back-preview" />
                 </div>
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col gap-3">
-            <Button
-              variant="outline"
-              className="w-full bg-transparent"
-              onClick={() => setShowPreview(!showPreview)}
-              disabled={!rcData}
-            >
-              {showPreview ? "Hide" : "Show"} Document Preview
-            </Button>
-
             <div className="grid md:grid-cols-2 gap-3 w-full">
               <Button
                 size="lg"
@@ -377,7 +268,7 @@ function PaymentSuccessContent() {
                 size="lg"
                 onClick={handleDownloadPDF}
                 disabled={downloading || !rcData}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-blue-600 hover:bg-blue-700"
               >
                 {downloading && downloadType === "pdf" ? (
                   "Generating PDF..."
@@ -410,15 +301,6 @@ function PaymentSuccessContent() {
             <div id="rc-combined-capture" className="inline-flex gap-4 bg-white">
               <RCDocumentTemplate data={rcData} side="front" id="rc-front-capture" />
               <RCDocumentTemplate data={rcData} side="back" id="rc-back-capture" />
-            </div>
-          </div>
-        )}
-
-        {showPreview && rcData && (
-          <div className="rounded-xl border bg-white p-2 md:p-4 shadow-sm overflow-x-auto">
-            <div className="flex min-w-max justify-center gap-3">
-              <RCDocumentTemplate data={rcData} side="front" id="rc-front-preview" />
-              <RCDocumentTemplate data={rcData} side="back" id="rc-back-preview" />
             </div>
           </div>
         )}

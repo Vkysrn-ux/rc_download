@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { loadRazorpayCheckout } from "@/lib/razorpay-client"
+import { RcDownloadStepper } from "@/components/rc-download-stepper"
+import { formatInr } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -240,7 +242,7 @@ function PaymentConfirmContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       <header className="border-b bg-white/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => router.back()}>
@@ -252,10 +254,11 @@ function PaymentConfirmContent() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto space-y-6">
+          <RcDownloadStepper step={2} />
           {success ? (
-            <Alert className="bg-green-50 border-green-200">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">Payment step completed. Redirecting…</AlertDescription>
+            <Alert className="bg-blue-50 border-blue-200">
+              <CheckCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800">Payment step completed. Redirecting…</AlertDescription>
             </Alert>
           ) : (
             <>
@@ -283,12 +286,12 @@ function PaymentConfirmContent() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Vehicle RC Download</span>
-                      <span className="font-medium">₹{price}</span>
+                      <span className="font-medium">{formatInr(price, { maximumFractionDigits: 0 })}</span>
                     </div>
                     <Separator />
                     <div className="flex items-center justify-between text-lg">
                       <span className="font-semibold">Total Amount</span>
-                      <span className="font-bold text-primary">₹{price}</span>
+                      <span className="font-bold text-primary">{formatInr(price, { maximumFractionDigits: 0 })}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -298,13 +301,17 @@ function PaymentConfirmContent() {
                 <Card className="border-primary">
                   <CardHeader>
                     <div className="flex items-center gap-2">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <Wallet className="h-5 w-5 text-green-600" />
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <Wallet className="h-5 w-5 text-blue-600" />
                       </div>
                       <div>
                         <CardTitle>Pay from Wallet</CardTitle>
                         <CardDescription>
-                          Current balance: ₹{user?.walletBalance?.toFixed?.(2) ?? "0.00"}
+                          Current balance:{" "}
+                          {formatInr(Number(user?.walletBalance ?? 0), {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
                         </CardDescription>
                       </div>
                     </div>
@@ -316,7 +323,7 @@ function PaymentConfirmContent() {
                       onClick={handleWalletPayment}
                       disabled={loading || (isAuthenticated && user && user.walletBalance < price)}
                     >
-                      {loading ? "Processing..." : `Pay ₹${price}`}
+                      {loading ? "Processing..." : `Pay ${formatInr(price, { maximumFractionDigits: 0 })}`}
                     </Button>
                     {isAuthenticated && user && user.walletBalance < price && (
                       <Button
