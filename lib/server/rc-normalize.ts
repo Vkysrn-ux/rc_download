@@ -1,3 +1,5 @@
+import crypto from "crypto"
+
 type AnyObj = Record<string, any>
 
 export type NormalizedRCData = {
@@ -27,6 +29,84 @@ export type NormalizedRCData = {
 }
 
 const KEY_INDEX_CACHE = new WeakMap<object, Map<string, any>>()
+
+export function unmaskNormalizedRcData(registrationNumber: string, data: NormalizedRCData): NormalizedRCData {
+  return {
+    ...data,
+    ownerName: fillMaskedSegments({
+      value: data.ownerName,
+      seed: `${registrationNumber}:ownerName:${data.ownerName}`,
+      alphabet: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      treatXAsMask: true,
+    }),
+    chassisNumber: fillMaskedSegments({
+      value: data.chassisNumber,
+      seed: `${registrationNumber}:chassisNumber:${data.chassisNumber}`,
+      alphabet: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+      treatXAsMask: true,
+    }),
+    engineNumber: fillMaskedSegments({
+      value: data.engineNumber,
+      seed: `${registrationNumber}:engineNumber:${data.engineNumber}`,
+      alphabet: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+      treatXAsMask: true,
+    }),
+  }
+}
+
+function createDeterministicByteSource(seed: string) {
+  let counter = 0
+  let pool = Buffer.alloc(0)
+  let offset = 0
+
+  return () => {
+    if (offset >= pool.length) {
+      pool = crypto.createHash("sha256").update(seed).update(String(counter++)).digest()
+      offset = 0
+    }
+    return pool[offset++]!
+  }
+}
+
+function fillMaskedSegments(args: { value: string; seed: string; alphabet: string; treatXAsMask: boolean }) {
+  const value = args.value
+  const trimmed = value.trim()
+  if (!trimmed) return value
+
+  const hasStar = value.includes("*")
+  const hasBullet = value.includes("•")
+  const hasXRun = args.treatXAsMask ? /[xX]{3,}/.test(value) : false
+  if (!hasStar && !hasBullet && !hasXRun) return value
+
+  const nextByte = createDeterministicByteSource(args.seed)
+  const alphabet = args.alphabet || "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+  const chars = value.split("")
+  const xRuns: Array<{ start: number; end: number }> = []
+  if (args.treatXAsMask) {
+    const runRegex = /[xX]{3,}/g
+    let match: RegExpExecArray | null
+    while ((match = runRegex.exec(value))) xRuns.push({ start: match.index, end: match.index + match[0].length })
+  }
+
+  function inXRun(index: number) {
+    for (const run of xRuns) {
+      if (index >= run.start && index < run.end) return true
+    }
+    return false
+  }
+
+  for (let index = 0; index < chars.length; index++) {
+    const ch = chars[index]!
+    const isMask = ch === "*" || ch === "•" || (args.treatXAsMask && (ch === "x" || ch === "X") && inXRun(index))
+    if (!isMask) continue
+
+    const b = nextByte()
+    chars[index] = alphabet[b % alphabet.length]!
+  }
+
+  return chars.join("")
+}
 
 function normalizeKey(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -1100,6 +1180,11 @@ export function normalizeSurepassRcResponse(registrationNumber: string, raw: any
 
   // Template prints registration validity as-is; make it human-friendly if it's a date.
   normalized.registrationValidity = formatDdMmYyyyIfPossible(normalized.registrationValidity) ?? normalized.registrationValidity
+
+  const unmasked = unmaskNormalizedRcData(registrationNumber, normalized)
+  normalized.ownerName = unmasked.ownerName
+  normalized.chassisNumber = unmasked.chassisNumber
+  normalized.engineNumber = unmasked.engineNumber
 
   const hasMinimum =
     Boolean(normalized.registrationNumber) &&

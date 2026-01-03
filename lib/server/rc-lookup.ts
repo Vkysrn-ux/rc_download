@@ -1,7 +1,7 @@
 import crypto from "crypto"
 import { dbQuery } from "@/lib/server/db"
 import { mockRCData } from "@/lib/server/rc-mock"
-import { normalizeSurepassRcResponse, type NormalizedRCData } from "@/lib/server/rc-normalize"
+import { normalizeSurepassRcResponse, type NormalizedRCData, unmaskNormalizedRcData } from "@/lib/server/rc-normalize"
 
 export class ExternalApiError extends Error {
   status: number
@@ -289,12 +289,22 @@ export async function lookupRc(
   if (cached) {
     if (isNormalizedRcData(cached) && !hasMissingCriticalFields(cached)) {
       emit?.({ type: "cache_hit" })
-      return { registrationNumber, data: cached, provider: "cache" as const, providerRef: cachedProviderRef }
+      return {
+        registrationNumber,
+        data: unmaskNormalizedRcData(registrationNumber, cached),
+        provider: "cache" as const,
+        providerRef: cachedProviderRef,
+      }
     }
     const normalizedCached = normalizeSurepassRcResponse(registrationNumber, cached)
     if (normalizedCached && !hasMissingCriticalFields(normalizedCached)) {
       emit?.({ type: "cache_hit" })
-      return { registrationNumber, data: normalizedCached, provider: "cache" as const, providerRef: cachedProviderRef }
+      return {
+        registrationNumber,
+        data: unmaskNormalizedRcData(registrationNumber, normalizedCached),
+        provider: "cache" as const,
+        providerRef: cachedProviderRef,
+      }
     }
   }
 
@@ -307,7 +317,7 @@ export async function lookupRc(
     const data = mockRCData[registrationNumber]
     if (data) {
       emit?.({ type: "mock_hit" })
-      return { registrationNumber, data, provider: "mock" as const, providerRef: null }
+      return { registrationNumber, data: unmaskNormalizedRcData(registrationNumber, data), provider: "mock" as const, providerRef: null }
     }
     if (!hasExternal) return null
   }
@@ -338,6 +348,7 @@ export async function lookupRc(
         throw new ExternalApiError(502, `RC provider #${provider.index} returned unsupported response format${detail}`)
       }
 
+      const unmasked = unmaskNormalizedRcData(registrationNumber, normalized)
       emit?.({ type: "provider_succeeded", providerIndex: provider.index })
       void logRcApiCall({
         userId: options?.userId ?? null,
@@ -348,7 +359,7 @@ export async function lookupRc(
         httpStatus: 200,
         errorMessage: null,
       })
-      return { registrationNumber, data: normalized, provider: "external" as const, providerRef: String(provider.index) }
+      return { registrationNumber, data: unmasked, provider: "external" as const, providerRef: String(provider.index) }
     } catch (error: any) {
       if (error instanceof ExternalApiError) {
         errors.push(error)
@@ -402,6 +413,7 @@ export async function lookupRc(
         throw new ExternalApiError(502, `RC provider #${apnircB2bFallback.index} returned unsupported response format${detail}`)
       }
 
+      const unmasked = unmaskNormalizedRcData(registrationNumber, normalized)
       emit?.({ type: "provider_succeeded", providerIndex: apnircB2bFallback.index })
       void logRcApiCall({
         userId: options?.userId ?? null,
@@ -412,7 +424,7 @@ export async function lookupRc(
         httpStatus: 200,
         errorMessage: null,
       })
-      return { registrationNumber, data: normalized, provider: "external" as const, providerRef: "apnirc-b2b" }
+      return { registrationNumber, data: unmasked, provider: "external" as const, providerRef: "apnirc-b2b" }
     } catch (error: any) {
       if (error instanceof ExternalApiError) {
         errors.push(error)
