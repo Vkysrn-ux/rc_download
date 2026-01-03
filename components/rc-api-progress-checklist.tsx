@@ -16,10 +16,10 @@ type RcApiProgressChecklistProps = {
 }
 
 const STEPS = [
-  { id: "rc-v2", label: "RC-v2" },
-  { id: "rc-full", label: "rc-full" },
-  { id: "rc-lite", label: "rc-lite" },
-  { id: "apnirc", label: "apnirc" },
+  { id: "rc-v2", label: "Server 1" },
+  { id: "rc-full", label: "Server 2" },
+  { id: "rc-lite", label: "Server 3" },
+  { id: "apnirc", label: "Server 4" },
 ] as const
 
 function clampUsedIndex(value: number) {
