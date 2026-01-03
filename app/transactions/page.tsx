@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ArrowDownCircle, ArrowLeft, ArrowUpCircle, RefreshCw } from "lucide-react"
+
 import { useAuth } from "@/lib/auth-context"
+import { formatInr } from "@/lib/format"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, RefreshCw } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 
 interface Transaction {
   id: string
@@ -21,10 +23,15 @@ interface Transaction {
 
 export default function TransactionsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { isAuthenticated, refreshUser } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  const filterType = (searchParams.get("type") || "").toLowerCase()
+  const activeFilter: "all" | "download" | "recharge" =
+    filterType === "download" ? "download" : filterType === "recharge" ? "recharge" : "all"
 
   const loadTransactions = async () => {
     setLoading(true)
@@ -61,6 +68,19 @@ export default function TransactionsPage() {
     })
   }
 
+  const filtered = useMemo(() => {
+    if (activeFilter === "all") return transactions
+    return transactions.filter((t) => t.type === activeFilter)
+  }, [activeFilter, transactions])
+
+  const title = activeFilter === "download" ? "Downloaded History" : activeFilter === "recharge" ? "Wallet Transactions" : "Your Transactions"
+  const description =
+    activeFilter === "download"
+      ? "View your RC download history"
+      : activeFilter === "recharge"
+        ? "View your wallet recharge history"
+        : "View all your wallet recharges and RC downloads"
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       <header className="border-b bg-white/80 backdrop-blur-sm">
@@ -82,12 +102,40 @@ export default function TransactionsPage() {
         <div className="max-w-4xl mx-auto space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Your Transactions</CardTitle>
-              <CardDescription>View all your wallet recharges and RC downloads</CardDescription>
+              <CardTitle>{title}</CardTitle>
+              <CardDescription>{description}</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <Button
+                  variant={activeFilter === "all" ? "default" : "outline"}
+                  size="sm"
+                  className={activeFilter === "all" ? "" : "bg-transparent"}
+                  onClick={() => router.replace("/transactions")}
+                >
+                  All
+                </Button>
+                <Button
+                  variant={activeFilter === "download" ? "default" : "outline"}
+                  size="sm"
+                  className={activeFilter === "download" ? "" : "bg-transparent"}
+                  onClick={() => router.replace("/transactions?type=download")}
+                >
+                  Downloads
+                </Button>
+                <Button
+                  variant={activeFilter === "recharge" ? "default" : "outline"}
+                  size="sm"
+                  className={activeFilter === "recharge" ? "" : "bg-transparent"}
+                  onClick={() => router.replace("/transactions?type=recharge")}
+                >
+                  Wallet
+                </Button>
+              </div>
+
               {error && <div className="text-sm text-destructive mb-3">{error}</div>}
-              {transactions.length === 0 ? (
+
+              {filtered.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-muted-foreground">No transactions yet</p>
                   <Button className="mt-4" onClick={() => router.push("/download")}>
@@ -96,17 +144,13 @@ export default function TransactionsPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {transactions.map((transaction) => (
+                  {filtered.map((transaction) => (
                     <div
                       key={transaction.id}
                       className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
                     >
                       <div className="flex items-center gap-4">
-                        <div
-                          className={`p-2 rounded-lg ${
-                            transaction.type === "recharge" ? "bg-green-100" : "bg-blue-100"
-                          }`}
-                        >
+                        <div className={`p-2 rounded-lg ${transaction.type === "recharge" ? "bg-green-100" : "bg-blue-100"}`}>
                           {transaction.type === "recharge" ? (
                             <ArrowUpCircle className="h-5 w-5 text-green-600" />
                           ) : (
@@ -122,26 +166,18 @@ export default function TransactionsPage() {
                                 via {transaction.paymentMethod}
                               </Badge>
                             )}
-                            <Badge
-                              variant={transaction.status === "completed" ? "default" : "secondary"}
-                              className="text-xs"
-                            >
+                            <Badge variant={transaction.status === "completed" ? "default" : "secondary"} className="text-xs">
                               {transaction.status}
                             </Badge>
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div
-                          className={`text-lg font-bold ${
-                            transaction.type === "recharge" ? "text-green-600" : "text-blue-600"
-                          }`}
-                        >
-                          {transaction.type === "recharge" ? "+" : ""}₹{Math.abs(transaction.amount)}
+                        <div className={`text-lg font-bold ${transaction.type === "recharge" ? "text-green-600" : "text-blue-600"}`}>
+                          {transaction.type === "recharge" ? "+" : "-"}
+                          {formatInr(Math.abs(transaction.amount), { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </div>
-                        {transaction.registrationNumber && (
-                          <div className="text-xs text-muted-foreground">{transaction.registrationNumber}</div>
-                        )}
+                        {transaction.registrationNumber && <div className="text-xs text-muted-foreground">{transaction.registrationNumber}</div>}
                       </div>
                     </div>
                   ))}
@@ -154,4 +190,3 @@ export default function TransactionsPage() {
     </div>
   )
 }
-

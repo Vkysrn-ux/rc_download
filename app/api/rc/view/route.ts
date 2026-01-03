@@ -38,7 +38,8 @@ export async function GET(req: Request) {
     })
   } catch (error: any) {
     if (error instanceof ExternalApiError) {
-      const status = error.status === 404 ? 404 : error.status === 401 || error.status === 403 ? 502 : 502
+      const status =
+        error.status === 404 ? 404 : error.status === 503 ? 503 : error.status === 401 || error.status === 403 ? 502 : 502
       return NextResponse.json({ ok: false, error: error.message }, { status })
     }
     return NextResponse.json({ ok: false, error: error?.message || "Lookup failed" }, { status: 500 })

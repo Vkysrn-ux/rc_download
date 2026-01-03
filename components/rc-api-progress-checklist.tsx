@@ -16,10 +16,8 @@ type RcApiProgressChecklistProps = {
 }
 
 const STEPS = [
-  { id: "rc-v2", label: "Server 1" },
-  { id: "rc-full", label: "Server 2" },
-  { id: "rc-lite", label: "Server 3" },
-  { id: "apnirc", label: "Server 4" },
+  { id: "provider-1", label: "Server 1" },
+  { id: "apnirc", label: "Server 2" },
 ] as const
 
 function clampUsedIndex(value: number) {
@@ -43,7 +41,7 @@ export function rcApiResultFromLookupResponse(json: any): RcApiProgressResult | 
 
   if (provider !== "external") return { status: "success", usedIndex: 0 }
 
-  if (providerRef === "apnirc-b2b") return { status: "success", usedIndex: 3 }
+  if (providerRef === "apnirc-b2b") return { status: "success", usedIndex: 1 }
 
   const index = Number.parseInt(providerRef, 10)
   if (!Number.isFinite(index) || index < 1) return { status: "success", usedIndex: 0 }
@@ -61,7 +59,7 @@ export function RcApiProgressChecklist({ active, steps, result, className }: RcA
   const resolvedSteps =
     normalizeSteps(steps) ??
     stepsFromResult(result?.status === "success" ? { ...result, usedIndex: clampUsedIndex(result.usedIndex) } : result) ??
-    (active ? (["active", "pending", "pending", "pending"] as RcApiStepStatus[]) : (["pending", "pending", "pending", "pending"] as RcApiStepStatus[]))
+    (active ? (["active", "pending"] as RcApiStepStatus[]) : (["pending", "pending"] as RcApiStepStatus[]))
 
   return (
     <div

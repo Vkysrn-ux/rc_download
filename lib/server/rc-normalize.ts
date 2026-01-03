@@ -33,12 +33,6 @@ const KEY_INDEX_CACHE = new WeakMap<object, Map<string, any>>()
 export function unmaskNormalizedRcData(registrationNumber: string, data: NormalizedRCData): NormalizedRCData {
   return {
     ...data,
-    ownerName: fillMaskedSegments({
-      value: data.ownerName,
-      seed: `${registrationNumber}:ownerName:${data.ownerName}`,
-      alphabet: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-      treatXAsMask: true,
-    }),
     chassisNumber: fillMaskedSegments({
       value: data.chassisNumber,
       seed: `${registrationNumber}:chassisNumber:${data.chassisNumber}`,

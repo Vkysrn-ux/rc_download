@@ -26,6 +26,14 @@ export async function POST(req: Request) {
 
   const autoApprove = (process.env.PAYMENT_AUTO_APPROVE ?? "").toLowerCase() === "true"
 
+  if (user) {
+    const existing = await dbQuery<{ id: string }>(
+      "SELECT id FROM transactions WHERE user_id = ? AND type = 'download' AND status = 'completed' AND registration_number = ? ORDER BY created_at DESC LIMIT 1",
+      [user.id, registrationNumber],
+    )
+    if (existing[0]?.id) return NextResponse.json({ ok: true, status: "completed", transactionId: existing[0].id, reused: true })
+  }
+
   if (parsed.data.paymentMethod === "wallet") {
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
 

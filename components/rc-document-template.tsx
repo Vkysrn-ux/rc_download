@@ -1,7 +1,7 @@
 "use client"
 
 import type { CSSProperties } from "react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import QRCode from "qrcode"
 
 interface RCData {
@@ -70,6 +70,11 @@ function displayValue(value: unknown) {
 function displayUpper(value: unknown) {
   const text = displayValue(value)
   return text === EMPTY_VALUE ? text : text.toUpperCase()
+}
+
+function displayRegNumber(value: unknown) {
+  const text = displayUpper(value)
+  return text === EMPTY_VALUE ? text : text.replace(/\s/g, "")
 }
 
 const CIRCLE_TEXT_POSITIONS = {
@@ -192,6 +197,7 @@ function BadgeCircle({ text, tone }: { text: string; tone: "blue" | "orange" }) 
 
 export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) {
   const registrationNumber = typeof data.registrationNumber === "string" ? data.registrationNumber : ""
+  const registrationNumberDisplay = useMemo(() => displayRegNumber(registrationNumber), [registrationNumber])
   const ownerName = typeof data.ownerName === "string" ? data.ownerName : ""
   const chassisNumber = typeof data.chassisNumber === "string" ? data.chassisNumber : ""
   const state = registrationNumber.substring(0, 2).toUpperCase()
@@ -202,21 +208,38 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
   const [templateErrorCount, setTemplateErrorCount] = useState(0)
   const [loadedSideTemplateUrl, setLoadedSideTemplateUrl] = useState<string | null>(null)
   const [loadedCombinedTemplate, setLoadedCombinedTemplate] = useState<{ url: string; w: number; h: number } | null>(null)
-  const qr = useMemo(() => {
-    const payload = `${registrationNumber}|${ownerName}|${chassisNumber}`
-    const auto = QRCode.create(payload, { errorCorrectionLevel: "M" })
-    if (auto.version >= MIN_QR_VERSION) return auto
-    return QRCode.create(payload, { errorCorrectionLevel: "M", version: MIN_QR_VERSION })
-  }, [chassisNumber, ownerName, registrationNumber])
+  const qrPayload = useMemo(() => {
+    return `${registrationNumberDisplay}|${ownerName}|${chassisNumber}`
+  }, [chassisNumber, ownerName, registrationNumberDisplay])
 
-  const qrRender = useMemo(() => {
-    const quietZone = 0
-    const totalModules = qr.modules.size + quietZone * 2
-    const targetPx = 152
-    const modulePx = Math.max(2, Math.floor(targetPx / totalModules))
-    const pixelSize = totalModules * modulePx
-    return { quietZone, totalModules, pixelSize }
-  }, [qr.modules.size])
+  const qrVersion = useMemo(() => {
+    const auto = QRCode.create(qrPayload, { errorCorrectionLevel: "M" })
+    return Math.max(auto.version, MIN_QR_VERSION)
+  }, [qrPayload])
+
+  const [qrDataUrl, setQrDataUrl] = useState<string>("")
+
+  useEffect(() => {
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const dataUrl = await QRCode.toDataURL(qrPayload, {
+          errorCorrectionLevel: "M",
+          margin: 0,
+          version: qrVersion,
+          width: 320,
+        })
+        if (!cancelled) setQrDataUrl(dataUrl)
+      } catch {
+        if (!cancelled) setQrDataUrl("")
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [qrPayload, qrVersion])
 
   const templateCandidates = useMemo(() => {
     return [...SIDE_TEMPLATE_CANDIDATES[side], ...COMBINED_TEMPLATE_CANDIDATES]
@@ -400,7 +423,7 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
         <div className="text-black" style={field(260, 94, 120)}>
           <div style={{ fontSize: x(10) }}>Regn. No</div>
           <div className="font-bold" style={{ fontSize: x(14) }}>
-            {displayUpper(registrationNumber)}
+            {registrationNumberDisplay}
           </div>
         </div>
         <div className="text-black" style={field(395, 94, 110)}>
@@ -588,48 +611,71 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
         Vehicle Class:&nbsp; {displayValue(data.vehicleClass)}
       </div>
 
-      <div className="text-black" style={field(32, 86, 170)}>
-        <div style={{ fontSize: x(10) }}>Regn. Number</div>
-        <div className="font-bold" style={{ fontSize: x(14) }}>
-          {displayUpper(registrationNumber)}
+      <div
+        className="text-black"
+        style={{
+          ...field(32, 84, 160),
+          height: y(32),
+          lineHeight: 1,
+          textAlign: "center",
+          zIndex: 2,
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: "100%",
+            fontSize: x(10),
+            lineHeight: 1,
+          }}
+        >
+          Regn. Number
+        </div>
+        <div
+          className="font-bold"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: y(12),
+            width: "100%",
+            fontSize: x(registrationNumberDisplay.length > 12 ? 12 : registrationNumberDisplay.length > 10 ? 13 : 14),
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {registrationNumberDisplay}
         </div>
       </div>
 
-      <div style={{ position: "absolute", left: x(32), top: y(118), width: x(160), height: x(160) }}>
-        <div className="flex h-full w-full items-center justify-center">
-          <svg
-            viewBox={`0 0 ${qrRender.totalModules} ${qrRender.totalModules}`}
-            style={{ width: `${qrRender.pixelSize}px`, height: `${qrRender.pixelSize}px` }}
-            shapeRendering="crispEdges"
-            aria-hidden="true"
-          >
-            {Array.from({ length: qr.modules.size }, (_, row) =>
-              Array.from({ length: qr.modules.size }, (_, col) => {
-                const on = qr.modules.get(col, row)
-                return on ? (
-                  <rect
-                    key={`${col}-${row}`}
-                    x={col + qrRender.quietZone}
-                    y={row + qrRender.quietZone}
-                    width="1"
-                    height="1"
-                    fill="#000"
-                  />
-                ) : null
-              }),
-            )}
-          </svg>
+      <div style={{ position: "absolute", left: x(32), top: y(132), width: x(160), height: y(160), zIndex: 1 }}>
+        <div className="flex h-full w-full items-center justify-center bg-white">
+          {qrDataUrl ? (
+            <img
+              src={qrDataUrl}
+              alt=""
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                imageRendering: "pixelated",
+              }}
+            />
+          ) : (
+            <div className="text-[10px] font-bold">QR</div>
+          )}
         </div>
       </div>
 
-      <div className="text-black" style={field(32, 292, 180)}>
+      <div className="text-black" style={field(32, 300, 180)}>
         <div style={{ fontSize: x(10) }}>Month - Year of Mfg.</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
           {displayValue(formatMonthYear(data.manufacturingDate || data.registrationDate))}
         </div>
       </div>
 
-      <div className="text-black" style={field(32, 330, 180)}>
+      <div className="text-black" style={field(32, 338, 180)}>
         <div style={{ fontSize: x(10) }}>No of Cylinders :</div>
         <div className="font-bold" style={{ fontSize: x(12) }}>
           {displayValue(data.cylinders)}

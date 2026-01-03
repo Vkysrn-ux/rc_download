@@ -34,7 +34,7 @@ function PaymentSuccessContent() {
 
     setRcLoading(true)
     setRcError("")
-    setApiSteps(["active", "pending", "pending", "pending"])
+    setApiSteps(["active", "pending"])
 
     eventSourceRef.current?.close()
     const url = transactionId
@@ -45,7 +45,7 @@ function PaymentSuccessContent() {
 
     const markActive = (stepIndex: number) => {
       setApiSteps((prev) => {
-        const next = (prev ?? ["pending", "pending", "pending", "pending"]).slice(0, 4) as RcApiStepStatus[]
+        const next = (prev ?? ["pending", "pending"]).slice(0, 2) as RcApiStepStatus[]
         for (let i = 0; i < next.length; i++) {
           if (i !== stepIndex && next[i] === "active") next[i] = "pending"
         }
@@ -56,7 +56,7 @@ function PaymentSuccessContent() {
 
     const markState = (stepIndex: number, state: RcApiStepStatus) => {
       setApiSteps((prev) => {
-        const next = (prev ?? ["pending", "pending", "pending", "pending"]).slice(0, 4) as RcApiStepStatus[]
+        const next = (prev ?? ["pending", "pending"]).slice(0, 2) as RcApiStepStatus[]
         next[stepIndex] = state
         return next
       })
@@ -66,7 +66,7 @@ function PaymentSuccessContent() {
       const payload = JSON.parse((event as MessageEvent).data || "{}")
       const stepIndex = Number(payload?.stepIndex)
       const state = String(payload?.state || "")
-      if (!Number.isFinite(stepIndex) || stepIndex < 0 || stepIndex > 3) return
+      if (!Number.isFinite(stepIndex) || stepIndex < 0 || stepIndex > 1) return
       if (state === "active") markActive(stepIndex)
       else if (state === "failure") markState(stepIndex, "failure")
       else if (state === "success") markState(stepIndex, "success")

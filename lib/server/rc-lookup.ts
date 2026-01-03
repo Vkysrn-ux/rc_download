@@ -98,6 +98,20 @@ function hasMissingCriticalFields(value: NormalizedRCData) {
   return !value.maker.trim() || !value.fuelType.trim()
 }
 
+function looksMasked(value: string) {
+  const text = (value || "").trim()
+  if (!text) return false
+  if (text.includes("*")) return true
+  if (text.includes("•")) return true
+  if (text.includes("ƒ?›")) return true
+  if (/[xX]{3,}/.test(text)) return true
+  return false
+}
+
+function isOwnerNameMasked(value: NormalizedRCData) {
+  return looksMasked(value.ownerName)
+}
+
 function readIndexedEnv(baseName: string, index: number) {
   if (index === 1) return process.env[baseName] ?? process.env[`${baseName}_1`]
   return process.env[`${baseName}_${index}`]
@@ -283,35 +297,42 @@ export async function lookupRc(
       }
     : null
 
+  const mode = (process.env.RC_API_MODE || "").toLowerCase()
+  // Only 2 servers are used:
+  // - Provider #1: RC_API_BASE_URL (Surepass or compatible)
+  // - Provider #2: RC_API_APNIRC_B2B_URL (APNIRC B2B fallback)
+  const providers = getRcProvidersFromEnv(1)
+  const apnircB2bFallback = getApnircB2bFallbackProviderFromEnv()
+  const hasExternal = providers.length > 0 || Boolean(apnircB2bFallback)
+
   const cachedResult = await getCached(registrationNumber)
   const cached = cachedResult?.rcJson ?? null
   const cachedProviderRef = cachedResult?.sourceProviderRef ?? null
   if (cached) {
     if (isNormalizedRcData(cached) && !hasMissingCriticalFields(cached)) {
-      emit?.({ type: "cache_hit" })
-      return {
-        registrationNumber,
-        data: unmaskNormalizedRcData(registrationNumber, cached),
-        provider: "cache" as const,
-        providerRef: cachedProviderRef,
+      if (!hasExternal || !isOwnerNameMasked(cached)) {
+        emit?.({ type: "cache_hit" })
+        return {
+          registrationNumber,
+          data: unmaskNormalizedRcData(registrationNumber, cached),
+          provider: "cache" as const,
+          providerRef: cachedProviderRef,
+        }
       }
     }
     const normalizedCached = normalizeSurepassRcResponse(registrationNumber, cached)
     if (normalizedCached && !hasMissingCriticalFields(normalizedCached)) {
-      emit?.({ type: "cache_hit" })
-      return {
-        registrationNumber,
-        data: unmaskNormalizedRcData(registrationNumber, normalizedCached),
-        provider: "cache" as const,
-        providerRef: cachedProviderRef,
+      if (!hasExternal || !isOwnerNameMasked(normalizedCached)) {
+        emit?.({ type: "cache_hit" })
+        return {
+          registrationNumber,
+          data: unmaskNormalizedRcData(registrationNumber, normalizedCached),
+          provider: "cache" as const,
+          providerRef: cachedProviderRef,
+        }
       }
     }
   }
-
-  const mode = (process.env.RC_API_MODE || "").toLowerCase()
-  const providers = getRcProvidersFromEnv(3)
-  const apnircB2bFallback = getApnircB2bFallbackProviderFromEnv()
-  const hasExternal = providers.length > 0 || Boolean(apnircB2bFallback)
 
   if (mode === "mock" || !hasExternal) {
     const data = mockRCData[registrationNumber]
@@ -323,6 +344,7 @@ export async function lookupRc(
   }
 
   const errors: ExternalApiError[] = []
+  let sawMaskedOwnerName = false
   for (const provider of providers) {
     try {
       emit?.({ type: "provider_attempt", providerIndex: provider.index })
@@ -348,6 +370,21 @@ export async function lookupRc(
         throw new ExternalApiError(502, `RC provider #${provider.index} returned unsupported response format${detail}`)
       }
 
+      if (isOwnerNameMasked(normalized)) {
+        sawMaskedOwnerName = true
+        emit?.({ type: "provider_failed", providerIndex: provider.index, status: 200, message: "Owner name masked; trying next server" })
+        void logRcApiCall({
+          userId: options?.userId ?? null,
+          registrationNumber,
+          providerRef: providerRefForCall(provider),
+          baseUrl: provider.baseUrl,
+          outcome: "failure",
+          httpStatus: 200,
+          errorMessage: "Owner name masked",
+        })
+        continue
+      }
+
       const unmasked = unmaskNormalizedRcData(registrationNumber, normalized)
       emit?.({ type: "provider_succeeded", providerIndex: provider.index })
       void logRcApiCall({
@@ -359,7 +396,7 @@ export async function lookupRc(
         httpStatus: 200,
         errorMessage: null,
       })
-      return { registrationNumber, data: unmasked, provider: "external" as const, providerRef: String(provider.index) }
+      return { registrationNumber, data: unmasked, provider: "external" as const, providerRef: providerRefForCall(provider) }
     } catch (error: any) {
       if (error instanceof ExternalApiError) {
         errors.push(error)
@@ -413,18 +450,33 @@ export async function lookupRc(
         throw new ExternalApiError(502, `RC provider #${apnircB2bFallback.index} returned unsupported response format${detail}`)
       }
 
-      const unmasked = unmaskNormalizedRcData(registrationNumber, normalized)
-      emit?.({ type: "provider_succeeded", providerIndex: apnircB2bFallback.index })
-      void logRcApiCall({
-        userId: options?.userId ?? null,
-        registrationNumber,
-        providerRef: providerRefForCall(apnircB2bFallback),
-        baseUrl: apnircB2bFallback.baseUrl,
-        outcome: "success",
-        httpStatus: 200,
-        errorMessage: null,
-      })
-      return { registrationNumber, data: unmasked, provider: "external" as const, providerRef: "apnirc-b2b" }
+      if (isOwnerNameMasked(normalized)) {
+        sawMaskedOwnerName = true
+        emit?.({ type: "provider_failed", providerIndex: apnircB2bFallback.index, status: 200, message: "Owner name masked; no more servers" })
+        void logRcApiCall({
+          userId: options?.userId ?? null,
+          registrationNumber,
+          providerRef: providerRefForCall(apnircB2bFallback),
+          baseUrl: apnircB2bFallback.baseUrl,
+          outcome: "failure",
+          httpStatus: 200,
+          errorMessage: "Owner name masked",
+        })
+        errors.push(new ExternalApiError(200, "Owner name masked"))
+      } else {
+        const unmasked = unmaskNormalizedRcData(registrationNumber, normalized)
+        emit?.({ type: "provider_succeeded", providerIndex: apnircB2bFallback.index })
+        void logRcApiCall({
+          userId: options?.userId ?? null,
+          registrationNumber,
+          providerRef: providerRefForCall(apnircB2bFallback),
+          baseUrl: apnircB2bFallback.baseUrl,
+          outcome: "success",
+          httpStatus: 200,
+          errorMessage: null,
+        })
+        return { registrationNumber, data: unmasked, provider: "external" as const, providerRef: "apnirc-b2b" }
+      }
     } catch (error: any) {
       if (error instanceof ExternalApiError) {
         errors.push(error)
@@ -455,7 +507,10 @@ export async function lookupRc(
     }
   }
 
-  if (errors.length && errors.every((e) => e.status === 404)) return null
+  if (errors.length && errors.every((e) => e.status === 404) && !sawMaskedOwnerName) return null
+
+  // If we couldn't get a usable RC response, do not allow the flow to continue to payment/wallet deduction.
+  if (hasExternal) throw new ExternalApiError(503, "Server down now")
 
   const summary = errors.map((e) => `[${e.status}] ${e.message}`).join(" | ")
   throw new ExternalApiError(502, summary || "All RC providers failed")

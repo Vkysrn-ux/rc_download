@@ -11,7 +11,8 @@ function writeEvent(controller: ReadableStreamDefaultController, event: string, 
 }
 
 function providerIndexToStepIndex(providerIndex: number) {
-  if (providerIndex >= 1 && providerIndex <= 4) return providerIndex - 1
+  if (providerIndex === 1) return 0
+  if (providerIndex === 4) return 1
   return 0
 }
 
@@ -80,7 +81,8 @@ export async function GET(req: Request) {
         })
       } catch (error: any) {
         if (error instanceof ExternalApiError) {
-          const status = error.status === 404 ? 404 : error.status === 401 || error.status === 403 ? 502 : 502
+          const status =
+            error.status === 404 ? 404 : error.status === 503 ? 503 : error.status === 401 || error.status === 403 ? 502 : 502
           writeEvent(controller, "server_error", { ok: false, error: error.message, status })
         } else {
           writeEvent(controller, "server_error", { ok: false, error: error?.message || "Lookup failed", status: 500 })

@@ -2,15 +2,14 @@
 
 import { Suspense, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, CheckCircle, Search } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ArrowLeft, Search } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 import { RcDownloadStepper } from "@/components/rc-download-stepper"
 import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
-import { formatInr } from "@/lib/format"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,18 +21,20 @@ function normalizeRegistration(value: string) {
 
 function DownloadPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, isAuthenticated } = useAuth()
-  const [step, setStep] = useState<1 | 2>(1)
+
   const [registrationNumber, setRegistrationNumber] = useState("")
-  const [rcData, setRcData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [error, setError] = useState("")
   const [apiSteps, setApiSteps] = useState<RcApiStepStatus[] | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const autoStartedRef = useRef(false)
 
-  const price = isAuthenticated ? 20 : 30
+  const walletPrice = 20
+  const canPayFromWallet = Boolean(isAuthenticated && user && user.walletBalance >= walletPrice)
 
   useEffect(() => {
     return () => {
@@ -42,14 +43,14 @@ function DownloadPageContent() {
     }
   }, [])
 
-  const handleSearch = () => {
-    const regNumber = normalizeRegistration(registrationNumber)
+  const startLookup = (regNumberRaw: string) => {
+    const regNumber = normalizeRegistration(regNumberRaw)
     if (!regNumber) return
 
     setError("")
-    setRcData(null)
-    setApiSteps(["active", "pending", "pending", "pending"])
+    setApiSteps(["active", "pending"])
     setLoading(true)
+    setConfirming(false)
     setRegistrationNumber(regNumber)
 
     eventSourceRef.current?.close()
@@ -58,7 +59,7 @@ function DownloadPageContent() {
 
     const markActive = (stepIndex: number) => {
       setApiSteps((prev) => {
-        const next = (prev ?? ["pending", "pending", "pending", "pending"]).slice(0, 4) as RcApiStepStatus[]
+        const next = (prev ?? ["pending", "pending"]).slice(0, 2) as RcApiStepStatus[]
         for (let i = 0; i < next.length; i++) {
           if (i !== stepIndex && next[i] === "active") next[i] = "pending"
         }
@@ -69,7 +70,7 @@ function DownloadPageContent() {
 
     const markState = (stepIndex: number, state: RcApiStepStatus) => {
       setApiSteps((prev) => {
-        const next = (prev ?? ["pending", "pending", "pending", "pending"]).slice(0, 4) as RcApiStepStatus[]
+        const next = (prev ?? ["pending", "pending"]).slice(0, 2) as RcApiStepStatus[]
         next[stepIndex] = state
         return next
       })
@@ -79,7 +80,7 @@ function DownloadPageContent() {
       const payload = JSON.parse((event as MessageEvent).data || "{}")
       const stepIndex = Number(payload?.stepIndex)
       const state = String(payload?.state || "")
-      if (!Number.isFinite(stepIndex) || stepIndex < 0 || stepIndex > 3) return
+      if (!Number.isFinite(stepIndex) || stepIndex < 0 || stepIndex > 1) return
       if (state === "active") markActive(stepIndex)
       else if (state === "failure") markState(stepIndex, "failure")
       else if (state === "success") markState(stepIndex, "success")
@@ -87,10 +88,47 @@ function DownloadPageContent() {
 
     source.addEventListener("done", (event) => {
       const payload = JSON.parse((event as MessageEvent).data || "{}")
-      setRcData(payload?.data ?? null)
-      setLoading(false)
-      setStep(2)
       source.close()
+      setLoading(false)
+
+      if (!payload?.data) {
+        setError("Lookup failed")
+        return
+      }
+
+      if (canPayFromWallet) {
+        setConfirming(true)
+        void (async () => {
+          try {
+            const res = await fetch("/api/download/purchase", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ registrationNumber: regNumber, paymentMethod: "wallet" }),
+            })
+            const json = await res.json().catch(() => ({}))
+            if (!res.ok) {
+              setConfirming(false)
+              router.push(`/payment/confirm?registration=${encodeURIComponent(regNumber)}&source=upi`)
+              return
+            }
+
+            router.push(
+              `/payment/success?registration=${encodeURIComponent(regNumber)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`,
+            )
+          } catch {
+            setConfirming(false)
+            router.push(`/payment/confirm?registration=${encodeURIComponent(regNumber)}&source=upi`)
+          }
+        })()
+        return
+      }
+
+      if (isAuthenticated) {
+        router.push(`/payment/confirm?registration=${encodeURIComponent(regNumber)}&source=upi`)
+        return
+      }
+
+      router.push(`/payment/confirm?registration=${encodeURIComponent(regNumber)}&source=upi&guest=true`)
     })
 
     source.addEventListener("not_found", (event) => {
@@ -114,48 +152,25 @@ function DownloadPageContent() {
     }
   }
 
-  const walletBalance = user?.walletBalance ?? 0
-  const balanceAfter = walletBalance - price
-  const canPayFromWallet = Boolean(isAuthenticated && user && user.walletBalance >= price)
+  const handleSearch = () => startLookup(registrationNumber)
 
-  const handleConfirmAndFetch = async () => {
-    const reg = normalizeRegistration(registrationNumber)
-    if (!reg) return
+  useEffect(() => {
+    const regParam = searchParams.get("registrationNumber") || searchParams.get("registration") || ""
+    if (!regParam) return
+    const normalized = normalizeRegistration(regParam)
+    if (!normalized) return
 
-    setError("")
+    setRegistrationNumber(normalized)
 
-    if (canPayFromWallet) {
-      setConfirming(true)
-      try {
-        const res = await fetch("/api/download/purchase", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ registrationNumber: reg, paymentMethod: "wallet" }),
-        })
-        const json = await res.json().catch(() => ({}))
-        if (!res.ok) {
-          setError(json?.error || "Unable to process wallet payment")
-          setConfirming(false)
-          return
-        }
+    const autostartValue = (searchParams.get("autostart") || "").trim().toLowerCase()
+    const autostart = autostartValue === "1" || autostartValue === "true" || autostartValue === "yes"
+    if (!autostart || autoStartedRef.current) return
 
-        router.push(
-          `/payment/success?registration=${encodeURIComponent(reg)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`,
-        )
-      } catch {
-        setError("Unable to process wallet payment")
-        setConfirming(false)
-      }
-      return
-    }
-
-    if (isAuthenticated) {
-      router.push(`/payment/confirm?registration=${encodeURIComponent(reg)}&source=upi`)
-      return
-    }
-
-    router.push(`/payment/confirm?registration=${encodeURIComponent(reg)}&source=upi&guest=true`)
-  }
+    autoStartedRef.current = true
+    setAcceptedTerms(true)
+    // Ensure state settles before starting the lookup.
+    setTimeout(() => startLookup(normalized), 0)
+  }, [searchParams])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
@@ -179,7 +194,7 @@ function DownloadPageContent() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          <RcDownloadStepper step={step} className="max-w-2xl mx-auto" />
+          <RcDownloadStepper step={1} className="max-w-2xl mx-auto" />
 
           {error && (
             <Alert variant="destructive" className="max-w-2xl mx-auto">
@@ -187,155 +202,69 @@ function DownloadPageContent() {
             </Alert>
           )}
 
-          {step === 1 ? (
-            <Card className="max-w-2xl mx-auto shadow-sm">
-              <CardHeader className="text-center">
-                <CardTitle>Enter Vehicle</CardTitle>
-                <CardDescription>Input registration number</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="registration" className="sr-only">
-                    Registration Number
-                  </Label>
-                  <Input
-                    id="registration"
-                    type="text"
-                    placeholder="ENTER VEHICLE NUMBER (E.G., MH12AB1234)"
-                    value={registrationNumber}
-                    onChange={(e) => setRegistrationNumber(e.target.value.toUpperCase())}
-                    className="h-12 text-center font-mono tracking-widest"
-                    autoComplete="off"
-                    inputMode="text"
-                  />
-                </div>
+          <Card className="max-w-2xl mx-auto shadow-sm">
+            <CardHeader className="text-center">
+              <CardTitle>Enter Vehicle</CardTitle>
+              <CardDescription>Input registration number</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="registration" className="sr-only">
+                  Registration Number
+                </Label>
+                <Input
+                  id="registration"
+                  type="text"
+                  placeholder="ENTER VEHICLE NUMBER (E.G., MH12AB1234)"
+                  value={registrationNumber}
+                  onChange={(e) => setRegistrationNumber(e.target.value.toUpperCase())}
+                  className="h-12 text-center font-mono tracking-widest"
+                  autoComplete="off"
+                  inputMode="text"
+                />
+              </div>
 
-                <div className="rounded-xl border bg-white p-3">
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id="terms"
-                      checked={acceptedTerms}
-                      onCheckedChange={(value) => setAcceptedTerms(value === true)}
-                    />
-                    <div className="space-y-1">
-                      <Label htmlFor="terms" className="font-normal leading-relaxed">
-                        I agree to the Terms & Conditions.
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        This is virtual RC only for references not original.
-                      </p>
-                      <Link href="/terms" className="text-xs underline text-muted-foreground">
-                        View Terms
-                      </Link>
-                    </div>
+              <div className="rounded-xl border bg-white p-3">
+                <div className="flex items-start gap-3">
+                  <Checkbox id="terms" checked={acceptedTerms} onCheckedChange={(value) => setAcceptedTerms(value === true)} />
+                  <div className="space-y-1">
+                    <Label htmlFor="terms" className="font-normal leading-relaxed">
+                      I agree to the Terms & Conditions.
+                    </Label>
+                    <p className="text-xs text-muted-foreground">This is virtual RC only for references not original.</p>
+                    <Link href="/terms" className="text-xs underline text-muted-foreground">
+                      View Terms
+                    </Link>
                   </div>
                 </div>
+              </div>
 
-                <Button
-                  onClick={handleSearch}
-                  disabled={loading || !registrationNumber || !acceptedTerms}
-                  className="w-full h-12 bg-blue-600 hover:bg-blue-700"
-                  size="lg"
-                >
-                  {loading ? (
-                    "Fetching..."
-                  ) : (
-                    <>
-                      <Search className="h-4 w-4 mr-2" />
-                      Fetch RC Details
-                    </>
-                  )}
-                </Button>
-
-                {(loading || apiSteps) && <RcApiProgressChecklist active={loading} steps={apiSteps} />}
-
-                {!acceptedTerms && registrationNumber.trim() && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    Please accept the Terms & Conditions to continue.
-                  </p>
+              <Button
+                onClick={handleSearch}
+                disabled={loading || confirming || !registrationNumber || !acceptedTerms}
+                className="w-full h-12 bg-blue-600 hover:bg-blue-700"
+                size="lg"
+              >
+                {loading ? (
+                  "Fetching..."
+                ) : confirming ? (
+                  "Processing..."
+                ) : (
+                  <>
+                    <Search className="h-4 w-4 mr-2" />
+                    Fetch RC Details
+                  </>
                 )}
-                <p className="text-sm text-muted-foreground text-center">Try: MH12AB1234 or DL01CD5678</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="max-w-2xl mx-auto shadow-sm">
-              <CardHeader className="text-center">
-                <CardTitle>Verify & Price</CardTitle>
-                <CardDescription>Confirm deduction</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="text-center space-y-2">
-                  <div className="text-sm text-muted-foreground">Vehicle Number</div>
-                  <div className="font-mono text-2xl md:text-3xl tracking-[0.25em]">
-                    {normalizeRegistration(registrationNumber)}
-                  </div>
-                </div>
+              </Button>
 
-                <div className="rounded-xl border bg-white p-5">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">RC Fetch Price</span>
-                      <span className="font-semibold">{formatInr(price, { maximumFractionDigits: 0 })}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Current Balance</span>
-                      <span className="font-semibold">
-                        {isAuthenticated
-                          ? formatInr(walletBalance, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          : "—"}
-                      </span>
-                    </div>
-                    <div className="h-px bg-border" />
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Balance After</span>
-                      <span className={canPayFromWallet ? "font-bold text-blue-600" : "font-bold text-destructive"}>
-                        {isAuthenticated
-                          ? formatInr(balanceAfter, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          : "—"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+              {(loading || apiSteps) && <RcApiProgressChecklist active={loading} steps={apiSteps} />}
 
-                <Alert className="bg-blue-50 border-blue-200">
-                  <CheckCircle className="text-blue-700" />
-                  <AlertDescription className="text-blue-900">
-                    {canPayFromWallet
-                      ? "Ready to proceed. Wallet will be charged when you confirm."
-                      : isAuthenticated
-                        ? "Wallet balance is insufficient. You can continue via UPI payment."
-                        : "Login to pay from wallet, or continue via UPI payment."}
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-              <CardFooter className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1 bg-transparent"
-                  onClick={() => {
-                    eventSourceRef.current?.close()
-                    eventSourceRef.current = null
-                    setStep(1)
-                    setRcData(null)
-                    setApiSteps(null)
-                    setError("")
-                  }}
-                  disabled={loading || confirming}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  onClick={handleConfirmAndFetch}
-                  disabled={confirming || !rcData || !registrationNumber}
-                >
-                  {confirming ? "Processing..." : canPayFromWallet ? "Confirm & Fetch" : "Continue to Payment"}
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
+              {!acceptedTerms && registrationNumber.trim() && (
+                <p className="text-xs text-muted-foreground text-center">Please accept the Terms & Conditions to continue.</p>
+              )}
+              <p className="text-sm text-muted-foreground text-center">Try: MH12AB1234 or DL01CD5678</p>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
