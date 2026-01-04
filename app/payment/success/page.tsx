@@ -38,8 +38,8 @@ function PaymentSuccessContent() {
 
     eventSourceRef.current?.close()
     const url = transactionId
-      ? `/api/rc/view/stream?transactionId=${encodeURIComponent(transactionId)}`
-      : `/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(registration)}`
+      ? `/api/rc/view/stream?transactionId=${encodeURIComponent(transactionId)}&fresh=1`
+      : `/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(registration)}&fresh=1`
     const source = new EventSource(url)
     eventSourceRef.current = source
 

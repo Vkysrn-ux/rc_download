@@ -275,7 +275,7 @@ export default function DashboardPage() {
     setChargingWallet(false)
 
     eventSourceRef.current?.close()
-    const source = new EventSource(`/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(reg)}`)
+    const source = new EventSource(`/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(reg)}&fresh=1`)
     eventSourceRef.current = source
 
     const markActive = (stepIndex: number) => {

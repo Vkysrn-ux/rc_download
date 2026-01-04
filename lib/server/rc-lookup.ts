@@ -256,6 +256,7 @@ async function fetchFromProvider(provider: RcProvider, registrationNumber: strin
       headers,
       body: JSON.stringify({ [provider.payloadField]: registrationNumber }),
       signal: controller.signal,
+      cache: "no-store",
     })
 
     const contentType = res.headers.get("content-type") || ""
@@ -284,6 +285,7 @@ export async function lookupRc(
   options?: {
     onProgress?: (event: RcLookupProgressEvent) => void
     userId?: string | null
+    bypassCache?: boolean
   },
 ) {
   const registrationNumber = normalizeRegistration(registrationNumberRaw)
@@ -305,30 +307,33 @@ export async function lookupRc(
   const apnircB2bFallback = getApnircB2bFallbackProviderFromEnv()
   const hasExternal = providers.length > 0 || Boolean(apnircB2bFallback)
 
-  const cachedResult = await getCached(registrationNumber)
-  const cached = cachedResult?.rcJson ?? null
-  const cachedProviderRef = cachedResult?.sourceProviderRef ?? null
-  if (cached) {
-    if (isNormalizedRcData(cached) && !hasMissingCriticalFields(cached)) {
-      if (!hasExternal || !isOwnerNameMasked(cached)) {
-        emit?.({ type: "cache_hit" })
-        return {
-          registrationNumber,
-          data: unmaskNormalizedRcData(registrationNumber, cached),
-          provider: "cache" as const,
-          providerRef: cachedProviderRef,
+  const shouldUseCache = !options?.bypassCache
+  if (shouldUseCache) {
+    const cachedResult = await getCached(registrationNumber)
+    const cached = cachedResult?.rcJson ?? null
+    const cachedProviderRef = cachedResult?.sourceProviderRef ?? null
+    if (cached) {
+      if (isNormalizedRcData(cached) && !hasMissingCriticalFields(cached)) {
+        if (!hasExternal || !isOwnerNameMasked(cached)) {
+          emit?.({ type: "cache_hit" })
+          return {
+            registrationNumber,
+            data: unmaskNormalizedRcData(registrationNumber, cached),
+            provider: "cache" as const,
+            providerRef: cachedProviderRef,
+          }
         }
       }
-    }
-    const normalizedCached = normalizeSurepassRcResponse(registrationNumber, cached)
-    if (normalizedCached && !hasMissingCriticalFields(normalizedCached)) {
-      if (!hasExternal || !isOwnerNameMasked(normalizedCached)) {
-        emit?.({ type: "cache_hit" })
-        return {
-          registrationNumber,
-          data: unmaskNormalizedRcData(registrationNumber, normalizedCached),
-          provider: "cache" as const,
-          providerRef: cachedProviderRef,
+      const normalizedCached = normalizeSurepassRcResponse(registrationNumber, cached)
+      if (normalizedCached && !hasMissingCriticalFields(normalizedCached)) {
+        if (!hasExternal || !isOwnerNameMasked(normalizedCached)) {
+          emit?.({ type: "cache_hit" })
+          return {
+            registrationNumber,
+            data: unmaskNormalizedRcData(registrationNumber, normalizedCached),
+            provider: "cache" as const,
+            providerRef: cachedProviderRef,
+          }
         }
       }
     }

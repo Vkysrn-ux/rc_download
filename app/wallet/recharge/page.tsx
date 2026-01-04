@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { loadRazorpayCheckout } from "@/lib/razorpay-client"
+import { shareManualPaymentProof } from "@/lib/manual-payment-proof"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -38,7 +39,7 @@ function buildUpiUri(upiId: string, payeeName: string, amount: number, note: str
 
 export default function WalletRechargePage() {
   const router = useRouter()
-  const { isAuthenticated, refreshUser } = useAuth()
+  const { user, isAuthenticated, refreshUser } = useAuth()
 
   const [amount, setAmount] = useState("")
   const [loading, setLoading] = useState(false)
@@ -48,6 +49,10 @@ export default function WalletRechargePage() {
   const [config, setConfig] = useState<PaymentConfig | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string>("")
   const [error, setError] = useState("")
+  const [manualTxn, setManualTxn] = useState<{ transactionId: string; status: string } | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [shareError, setShareError] = useState("")
+  const proofRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/login")
@@ -101,7 +106,52 @@ export default function WalletRechargePage() {
   const handlePaymentClick = () => {
     setError("")
     if (!numericAmount || numericAmount <= 0) return
+    setManualTxn(null)
+    setShareError("")
     setShowPaymentModal(true)
+  }
+
+  const finishRechargeFlow = (status: string) => {
+    setShowPaymentModal(false)
+    setSuccess(true)
+
+    setTimeout(() => {
+      router.push(status === "completed" ? "/dashboard" : "/transactions")
+    }, 1200)
+  }
+
+  const sendWhatsAppProof = async (transactionId?: string) => {
+    setShareError("")
+    const adminNumber = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP_NUMBER || ""
+    if (!adminNumber) {
+      setShareError("Admin WhatsApp number is not configured.")
+      return
+    }
+
+    setSharing(true)
+    const now = new Date().toLocaleString()
+    const message = [
+      "Manual wallet recharge",
+      `User: ${user?.name || "-"}`,
+      `User ID: ${user?.id || "-"}`,
+      `Amount: ₹${numericAmount}`,
+      transactionId ? `Transaction ID: ${transactionId}` : "",
+      `Time: ${now}`,
+    ]
+      .filter(Boolean)
+      .join("\n")
+
+    const result = await shareManualPaymentProof({
+      adminNumber,
+      message,
+      screenshotEl: proofRef.current,
+      filename: transactionId ? `recharge-${transactionId}.png` : undefined,
+    })
+
+    setSharing(false)
+    if (!result.ok) {
+      setShareError("Couldn't open WhatsApp. Please send the screenshot manually.")
+    }
   }
 
   const handleConfirmPaid = async () => {
@@ -121,12 +171,8 @@ export default function WalletRechargePage() {
 
     await refreshUser()
     setLoading(false)
-    setShowPaymentModal(false)
-    setSuccess(true)
-
-    setTimeout(() => {
-      router.push(json?.status === "completed" ? "/dashboard" : "/transactions")
-    }, 1200)
+    setManualTxn({ transactionId: json?.transactionId || "", status: json?.status || "pending" })
+    await sendWhatsAppProof(json?.transactionId).catch(() => {})
   }
 
   const handleRazorpayRecharge = async () => {
@@ -294,24 +340,36 @@ export default function WalletRechargePage() {
         </div>
       </main>
 
-      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+      <Dialog
+        open={showPaymentModal}
+        onOpenChange={(open) => {
+          setShowPaymentModal(open)
+          if (!open) {
+            setManualTxn(null)
+            setShareError("")
+            setSharing(false)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-2xl">Complete Payment</DialogTitle>
             <DialogDescription className="text-base">Pay ₹{amount} to recharge your wallet</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
-            <Button
-              onClick={handleRazorpayRecharge}
-              disabled={loading || !numericAmount || numericAmount <= 0}
-              className="w-full"
-              size="lg"
-            >
-              {loading ? "Opening..." : "Pay with Razorpay"}
-            </Button>
-            <div className="text-xs text-muted-foreground text-center">or pay via UPI (manual)</div>
-          </div>
+          {!manualTxn && (
+            <div className="space-y-3">
+              <Button
+                onClick={handleRazorpayRecharge}
+                disabled={loading || !numericAmount || numericAmount <= 0}
+                className="w-full"
+                size="lg"
+              >
+                {loading ? "Opening..." : "Pay with Razorpay"}
+              </Button>
+              <div className="text-xs text-muted-foreground text-center">or pay via UPI (manual)</div>
+            </div>
+          )}
 
           {!config?.upiId ? (
             <Alert variant="destructive">
@@ -319,47 +377,85 @@ export default function WalletRechargePage() {
             </Alert>
           ) : (
             <div className="space-y-4 py-2">
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                <div className="font-medium">UPI ID</div>
-                <div className="font-mono break-all">{config.upiId}</div>
-                {config.payeeName && <div className="text-muted-foreground mt-1">Payee: {config.payeeName}</div>}
+              <div ref={proofRef} className="space-y-4">
+                <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                  <div className="font-medium">UPI ID</div>
+                  <div className="font-mono break-all">{config.upiId}</div>
+                  {config.payeeName && <div className="text-muted-foreground mt-1">Payee: {config.payeeName}</div>}
+                </div>
+
+                {isMobile ? (
+                  <Button className="w-full" size="lg" asChild>
+                    <a href={upiUri || "#"}>Open UPI App</a>
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <QrCode className="h-4 w-4" />
+                      <span>Scan QR in any UPI app</span>
+                    </div>
+                    <div className="flex items-center justify-center">
+                      {qrDataUrl ? (
+                        <img
+                          src={qrDataUrl}
+                          alt="UPI QR"
+                          className="w-64 h-64 object-contain border rounded-lg bg-white"
+                        />
+                      ) : config.qrUrl ? (
+                        <img
+                          src={config.qrUrl}
+                          alt="UPI QR"
+                          className="w-64 h-64 object-contain border rounded-lg bg-white"
+                        />
+                      ) : (
+                        <div className="w-64 h-64 border rounded-lg bg-white flex items-center justify-center text-muted-foreground">
+                          <Smartphone className="h-6 w-6" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                  <div className="font-medium">Payment Details</div>
+                  <div className="text-muted-foreground">Amount: ₹{numericAmount}</div>
+                  <div className="text-muted-foreground">User: {user?.name || "-"}</div>
+                  <div className="text-muted-foreground">User ID: {user?.id || "-"}</div>
+                  {manualTxn?.transactionId && (
+                    <div className="text-muted-foreground">Transaction ID: {manualTxn.transactionId}</div>
+                  )}
+                </div>
               </div>
 
-              {isMobile ? (
-                <Button className="w-full" size="lg" asChild>
-                  <a href={upiUri || "#"}>Open UPI App</a>
-                </Button>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <QrCode className="h-4 w-4" />
-                    <span>Scan QR in any UPI app</span>
-                  </div>
-                  <div className="flex items-center justify-center">
-                    {qrDataUrl ? (
-                      <img
-                        src={qrDataUrl}
-                        alt="UPI QR"
-                        className="w-64 h-64 object-contain border rounded-lg bg-white"
-                      />
-                    ) : config.qrUrl ? (
-                      <img
-                        src={config.qrUrl}
-                        alt="UPI QR"
-                        className="w-64 h-64 object-contain border rounded-lg bg-white"
-                      />
-                    ) : (
-                      <div className="w-64 h-64 border rounded-lg bg-white flex items-center justify-center text-muted-foreground">
-                        <Smartphone className="h-6 w-6" />
-                      </div>
-                    )}
-                  </div>
-                </div>
+              {shareError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{shareError}</AlertDescription>
+                </Alert>
               )}
 
-              <Button onClick={handleConfirmPaid} disabled={loading} className="w-full" size="lg">
-                {loading ? "Saving..." : "I've Paid (Manual)"}
-              </Button>
+              {manualTxn ? (
+                <div className="space-y-2">
+                  <Button
+                    onClick={() => sendWhatsAppProof(manualTxn.transactionId)}
+                    disabled={sharing}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {sharing ? "Opening WhatsApp..." : "Send Screenshot to WhatsApp"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full bg-transparent"
+                    onClick={() => finishRechargeFlow(manualTxn.status)}
+                  >
+                    Continue
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={handleConfirmPaid} disabled={loading} className="w-full" size="lg">
+                  {loading ? "Saving..." : "I've Paid (Manual)"}
+                </Button>
+              )}
               {!config.autoApprove && (
                 <p className="text-xs text-muted-foreground">
                   Recharge will show as pending until confirmed by admin.

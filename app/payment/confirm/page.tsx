@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState, Suspense } from "react"
+import { useEffect, useMemo, useRef, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { loadRazorpayCheckout } from "@/lib/razorpay-client"
+import { shareManualPaymentProof } from "@/lib/manual-payment-proof"
 import { RcDownloadStepper } from "@/components/rc-download-stepper"
 import { formatInr } from "@/lib/format"
 import { Button } from "@/components/ui/button"
@@ -50,6 +51,10 @@ function PaymentConfirmContent() {
   const [config, setConfig] = useState<PaymentConfig | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string>("")
   const [isMobile, setIsMobile] = useState(false)
+  const [manualTxn, setManualTxn] = useState<{ transactionId: string; status: string } | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [shareError, setShareError] = useState("")
+  const proofRef = useRef<HTMLDivElement | null>(null)
 
   const price = isAuthenticated && !isGuest ? 20 : 30
 
@@ -96,6 +101,52 @@ function PaymentConfirmContent() {
     }
   }, [upiUri, config?.qrUrl])
 
+  const finishUpiFlow = (transactionId: string) => {
+    setSuccess(true)
+    setTimeout(() => {
+      router.push(
+        `/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`,
+      )
+    }, 1200)
+  }
+
+  const sendWhatsAppProof = async (transactionId?: string) => {
+    setShareError("")
+    const adminNumber = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP_NUMBER || ""
+    if (!adminNumber) {
+      setShareError("Admin WhatsApp number is not configured.")
+      return
+    }
+
+    setSharing(true)
+    const now = new Date().toLocaleString()
+    const displayName = isAuthenticated ? user?.name || "-" : "Guest"
+    const displayUserId = isAuthenticated ? user?.id || "-" : "N/A"
+    const message = [
+      "Manual UPI payment (RC download)",
+      `User: ${displayName}`,
+      `User ID: ${displayUserId}`,
+      `Registration: ${registration}`,
+      `Amount: ₹${price}`,
+      transactionId ? `Transaction ID: ${transactionId}` : "",
+      `Time: ${now}`,
+    ]
+      .filter(Boolean)
+      .join("\n")
+
+    const result = await shareManualPaymentProof({
+      adminNumber,
+      message,
+      screenshotEl: proofRef.current,
+      filename: transactionId ? `download-${transactionId}.png` : undefined,
+    })
+
+    setSharing(false)
+    if (!result.ok) {
+      setShareError("Couldn't open WhatsApp. Please send the screenshot manually.")
+    }
+  }
+
   const handleWalletPayment = async () => {
     setLoading(true)
     setError("")
@@ -135,6 +186,7 @@ function PaymentConfirmContent() {
     setLoading(true)
     setError("")
     setInfo("")
+    setShareError("")
 
     try {
       const res = await fetch("/api/download/purchase", {
@@ -150,16 +202,13 @@ function PaymentConfirmContent() {
       }
 
       await refreshUser()
+      setLoading(false)
       if (json?.status === "pending") {
         setInfo("Payment recorded as pending. You can proceed, but it may be reviewed later.")
       }
 
-      setSuccess(true)
-      setTimeout(() => {
-        router.push(
-          `/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`,
-        )
-      }, 1200)
+      setManualTxn({ transactionId: json?.transactionId || "", status: json?.status || "pending" })
+      await sendWhatsAppProof(json?.transactionId).catch(() => {})
     } catch {
       setError("Payment failed. Please try again.")
       setLoading(false)
@@ -317,14 +366,14 @@ function PaymentConfirmContent() {
                     </div>
                   </CardHeader>
                   <CardFooter className="flex flex-col gap-3">
-                    <Button
-                      className="w-full"
-                      size="lg"
-                      onClick={handleWalletPayment}
-                      disabled={loading || (isAuthenticated && user && user.walletBalance < price)}
-                    >
-                      {loading ? "Processing..." : `Pay ${formatInr(price, { maximumFractionDigits: 0 })}`}
-                    </Button>
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={handleWalletPayment}
+                        disabled={loading || Boolean(isAuthenticated && user && user.walletBalance < price)}
+                      >
+                        {loading ? "Processing..." : `Pay ${formatInr(price, { maximumFractionDigits: 0 })}`}
+                      </Button>
                     {isAuthenticated && user && user.walletBalance < price && (
                       <Button
                         variant="outline"
@@ -344,7 +393,12 @@ function PaymentConfirmContent() {
                       <CardDescription>Cards, UPI, NetBanking, Wallets</CardDescription>
                     </CardHeader>
                     <CardFooter>
-                      <Button className="w-full" size="lg" onClick={handleRazorpayPayment} disabled={loading || !registration}>
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={handleRazorpayPayment}
+                        disabled={loading || !registration || Boolean(manualTxn)}
+                      >
                         {loading ? "Opening..." : `Pay INR ${price}`}
                       </Button>
                     </CardFooter>
@@ -355,68 +409,106 @@ function PaymentConfirmContent() {
                       <CardTitle>Pay via UPI (Manual)</CardTitle>
                       <CardDescription>Scan QR or use the UPI ID</CardDescription>
                     </CardHeader>
-                  <CardContent className="space-y-4">
-                    {!config?.upiId ? (
-                      <Alert variant="destructive">
-                        <AlertDescription>UPI is not configured. Set `PAYMENT_UPI_ID` in your environment.</AlertDescription>
-                      </Alert>
-                    ) : (
-                      <>
-                        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                          <div className="font-medium">UPI ID</div>
-                          <div className="font-mono break-all">{config.upiId}</div>
-                          {config.payeeName && (
-                            <div className="text-muted-foreground mt-1">Payee: {config.payeeName}</div>
-                          )}
-                        </div>
-
-                        {isMobile ? (
-                          <Button className="w-full" size="lg" asChild>
-                            <a href={upiUri || "#"}>
-                              <Smartphone className="h-4 w-4 mr-2" />
-                              Open UPI App
-                            </a>
-                          </Button>
+                    <CardContent className="space-y-4">
+                      <div ref={proofRef} className="space-y-4">
+                        {!config?.upiId ? (
+                          <Alert variant="destructive">
+                            <AlertDescription>
+                              UPI is not configured. Set `PAYMENT_UPI_ID` in your environment.
+                            </AlertDescription>
+                          </Alert>
                         ) : (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <QrCode className="h-4 w-4" />
-                              <span>Scan QR in any UPI app</span>
-                            </div>
-                            <div className="flex items-center justify-center">
-                              {qrDataUrl ? (
-                                <img
-                                  src={qrDataUrl}
-                                  alt="UPI QR"
-                                  className="w-64 h-64 object-contain border rounded-lg bg-white"
-                                />
-                              ) : config.qrUrl ? (
-                                <img
-                                  src={config.qrUrl}
-                                  alt="UPI QR"
-                                  className="w-64 h-64 object-contain border rounded-lg bg-white"
-                                />
-                              ) : (
-                                <div className="w-64 h-64 border rounded-lg bg-white flex items-center justify-center text-muted-foreground">
-                                  <QrCode className="h-6 w-6" />
-                                </div>
+                          <>
+                            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                              <div className="font-medium">UPI ID</div>
+                              <div className="font-mono break-all">{config.upiId}</div>
+                              {config.payeeName && (
+                                <div className="text-muted-foreground mt-1">Payee: {config.payeeName}</div>
                               )}
                             </div>
+
+                            {isMobile ? (
+                              <Button className="w-full" size="lg" asChild>
+                                <a href={upiUri || "#"}>
+                                  <Smartphone className="h-4 w-4 mr-2" />
+                                  Open UPI App
+                                </a>
+                              </Button>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <QrCode className="h-4 w-4" />
+                                  <span>Scan QR in any UPI app</span>
+                                </div>
+                                <div className="flex items-center justify-center">
+                                  {qrDataUrl ? (
+                                    <img
+                                      src={qrDataUrl}
+                                      alt="UPI QR"
+                                      className="w-64 h-64 object-contain border rounded-lg bg-white"
+                                    />
+                                  ) : config.qrUrl ? (
+                                    <img
+                                      src={config.qrUrl}
+                                      alt="UPI QR"
+                                      className="w-64 h-64 object-contain border rounded-lg bg-white"
+                                    />
+                                  ) : (
+                                    <div className="w-64 h-64 border rounded-lg bg-white flex items-center justify-center text-muted-foreground">
+                                      <QrCode className="h-6 w-6" />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {!config.autoApprove && (
+                              <p className="text-xs text-muted-foreground">
+                                Payment may be marked pending until confirmed.
+                              </p>
+                            )}
+                          </>
+                        )}
+
+                        <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                          <div className="font-medium">Payment Details</div>
+                          <div className="text-muted-foreground">Amount: ₹{price}</div>
+                          <div className="text-muted-foreground">Registration: {registration}</div>
+                          <div className="text-muted-foreground">User: {isAuthenticated ? user?.name || "-" : "Guest"}</div>
+                          <div className="text-muted-foreground">
+                            User ID: {isAuthenticated ? user?.id || "-" : "N/A"}
                           </div>
-                        )}
-                        {!config.autoApprove && (
-                          <p className="text-xs text-muted-foreground">
-                            Payment may be marked pending until confirmed.
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </CardContent>
-                  <CardFooter>
-                    <Button className="w-full" size="lg" onClick={handleUpiManualPayment} disabled={loading || !registration}>
-                      {loading ? "Saving..." : "I've Paid"}
-                    </Button>
-                  </CardFooter>
+                          {manualTxn?.transactionId && (
+                            <div className="text-muted-foreground">Transaction ID: {manualTxn.transactionId}</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {shareError && (
+                        <Alert variant="destructive">
+                          <AlertDescription>{shareError}</AlertDescription>
+                        </Alert>
+                      )}
+                    </CardContent>
+                    <CardFooter className="flex flex-col gap-2">
+                      {manualTxn ? (
+                        <>
+                          <Button className="w-full" size="lg" onClick={() => sendWhatsAppProof(manualTxn.transactionId)} disabled={sharing}>
+                            {sharing ? "Opening WhatsApp..." : "Send Screenshot to WhatsApp"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="w-full bg-transparent"
+                            onClick={() => finishUpiFlow(manualTxn.transactionId)}
+                          >
+                            Continue
+                          </Button>
+                        </>
+                      ) : (
+                        <Button className="w-full" size="lg" onClick={handleUpiManualPayment} disabled={loading || !registration}>
+                          {loading ? "Saving..." : "I've Paid"}
+                        </Button>
+                      )}
+                    </CardFooter>
                   </Card>
                 </>
               )}

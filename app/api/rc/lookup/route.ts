@@ -8,18 +8,12 @@ const LookupSchema = z.object({ registrationNumber: z.string().min(4).max(32) })
 
 const USER_PRICE = 20
 
-async function hasPurchased(userId: string, registrationNumber: string) {
-  const rows = await dbQuery<{ id: string }>(
-    "SELECT id FROM transactions WHERE user_id = ? AND type = 'download' AND status = 'completed' AND registration_number = ? LIMIT 1",
-    [userId, registrationNumber],
-  )
-  return Boolean(rows[0]?.id)
-}
-
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const reg = url.searchParams.get("registrationNumber")
   if (!reg) return NextResponse.json({ ok: false, error: "Missing registrationNumber" }, { status: 400 })
+  const freshParam = (url.searchParams.get("fresh") || "").trim().toLowerCase()
+  const bypassCache = freshParam === "1" || freshParam === "true" || freshParam === "yes"
 
   try {
     const registrationNumber = normalizeRegistration(reg)
@@ -30,12 +24,12 @@ export async function GET(req: Request) {
         [user.id],
       )
       const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
-      if (walletBalance < USER_PRICE && !(await hasPurchased(user.id, registrationNumber))) {
+      if (walletBalance < USER_PRICE) {
         return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please pay to view RC." }, { status: 402 })
       }
     }
 
-    const result = await lookupRc(registrationNumber, { userId: user?.id ?? null })
+    const result = await lookupRc(registrationNumber, { userId: user?.id ?? null, bypassCache })
     if (!result) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
     await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider, result.providerRef).catch(() => {})
@@ -71,7 +65,7 @@ export async function POST(req: Request) {
         [user.id],
       )
       const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
-      if (walletBalance < USER_PRICE && !(await hasPurchased(user.id, registrationNumber))) {
+      if (walletBalance < USER_PRICE) {
         return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please pay to view RC." }, { status: 402 })
       }
     }

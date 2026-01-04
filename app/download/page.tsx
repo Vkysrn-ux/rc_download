@@ -54,7 +54,7 @@ function DownloadPageContent() {
     setRegistrationNumber(regNumber)
 
     eventSourceRef.current?.close()
-    const source = new EventSource(`/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(regNumber)}`)
+    const source = new EventSource(`/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(regNumber)}&fresh=1`)
     eventSourceRef.current = source
 
     const markActive = (stepIndex: number) => {

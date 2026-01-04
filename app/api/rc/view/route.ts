@@ -6,6 +6,8 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const transactionId = url.searchParams.get("transactionId") || ""
   if (!transactionId) return NextResponse.json({ ok: false, error: "Missing transactionId" }, { status: 400 })
+  const freshParam = (url.searchParams.get("fresh") || "").trim().toLowerCase()
+  const bypassCache = freshParam === "1" || freshParam === "true" || freshParam === "yes"
 
   const txns = await dbQuery<{
     id: string
@@ -25,7 +27,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const result = await lookupRc(txn.registration_number, { userId: txn.user_id ?? null })
+    const result = await lookupRc(txn.registration_number, { userId: txn.user_id ?? null, bypassCache })
     if (!result) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
     await storeRcResult(result.registrationNumber, txn.user_id ?? null, result.data, result.provider, result.providerRef).catch(() => {})

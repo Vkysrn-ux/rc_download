@@ -16,17 +16,11 @@ function providerIndexToStepIndex(providerIndex: number) {
   return 0
 }
 
-async function hasPurchased(userId: string, registrationNumber: string) {
-  const rows = await dbQuery<{ id: string }>(
-    "SELECT id FROM transactions WHERE user_id = ? AND type = 'download' AND status = 'completed' AND registration_number = ? LIMIT 1",
-    [userId, registrationNumber],
-  )
-  return Boolean(rows[0]?.id)
-}
-
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const reg = url.searchParams.get("registrationNumber")
+  const freshParam = (url.searchParams.get("fresh") || "").trim().toLowerCase()
+  const bypassCache = freshParam === "1" || freshParam === "true" || freshParam === "yes"
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -45,7 +39,7 @@ export async function GET(req: Request) {
             [user.id],
           )
           const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
-          if (walletBalance < USER_PRICE && !(await hasPurchased(user.id, registrationNumber))) {
+          if (walletBalance < USER_PRICE) {
             writeEvent(controller, "server_error", { ok: false, error: "Insufficient wallet balance. Please pay to view RC.", status: 402 })
             return
           }
@@ -53,6 +47,7 @@ export async function GET(req: Request) {
 
         const result = await lookupRc(registrationNumber, {
           userId: user?.id ?? null,
+          bypassCache,
           onProgress: (event: RcLookupProgressEvent) => {
             if (event.type === "provider_attempt") {
               writeEvent(controller, "progress", { stepIndex: providerIndexToStepIndex(event.providerIndex), state: "active" })

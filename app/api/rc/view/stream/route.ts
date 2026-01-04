@@ -16,6 +16,8 @@ function providerIndexToStepIndex(providerIndex: number) {
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const transactionId = url.searchParams.get("transactionId") || ""
+  const freshParam = (url.searchParams.get("fresh") || "").trim().toLowerCase()
+  const bypassCache = freshParam === "1" || freshParam === "true" || freshParam === "yes"
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -50,6 +52,7 @@ export async function GET(req: Request) {
 
         const result = await lookupRc(txn.registration_number, {
           userId: txn.user_id ?? null,
+          bypassCache,
           onProgress: (event: RcLookupProgressEvent) => {
             if (event.type === "provider_attempt") {
               writeEvent(controller, "progress", { stepIndex: providerIndexToStepIndex(event.providerIndex), state: "active" })
