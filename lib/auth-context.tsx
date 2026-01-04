@@ -15,6 +15,7 @@ interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>
+  loginWithPhoneIdToken: (idToken: string, name?: string) => Promise<{ ok: boolean; error?: string }>
   signup: (
     name: string,
     email: string,
@@ -31,8 +32,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [initializing, setInitializing] = useState(true)
+  const isAuthenticated = Boolean(user)
 
   useEffect(() => {
     refreshUser().finally(() => setInitializing(false))
@@ -43,7 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const json = await res.json().catch(() => ({}))
     const me = json?.user ?? null
     setUser(me)
-    setIsAuthenticated(Boolean(me))
   }
 
   const signup = async (name: string, email: string, password: string) => {
@@ -71,7 +71,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const json = await res.json().catch(() => ({}))
     if (!res.ok) return { ok: false, error: json?.error || "Login failed" }
     setUser(json.user)
-    setIsAuthenticated(true)
+    return { ok: true }
+  }
+
+  const loginWithPhoneIdToken = async (idToken: string, name?: string) => {
+    const res = await fetch("/api/auth/phone/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken, ...(name ? { name } : {}) }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) return { ok: false, error: json?.error || "Phone login failed" }
+    setUser(json.user)
     return { ok: true }
   }
 
@@ -95,14 +106,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const json = await res.json().catch(() => ({}))
     if (!res.ok) return { ok: false, error: json?.error || "OTP verification failed" }
     setUser(json.user)
-    setIsAuthenticated(true)
     return { ok: true }
   }
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" })
     setUser(null)
-    setIsAuthenticated(false)
   }
 
   const updateWalletBalance = (amount: number) => {
@@ -111,7 +120,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated, login, signup, requestOtp, verifyOtp, logout, refreshUser, updateWalletBalance }}
+      value={{
+        user,
+        isAuthenticated,
+        login,
+        loginWithPhoneIdToken,
+        signup,
+        requestOtp,
+        verifyOtp,
+        logout,
+        refreshUser,
+        updateWalletBalance,
+      }}
     >
       {initializing ? null : children}
     </AuthContext.Provider>

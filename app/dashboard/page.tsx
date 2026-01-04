@@ -75,7 +75,6 @@ export default function DashboardPage() {
   const [downloadRegistration, setDownloadRegistration] = useState("")
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [fetchingRc, setFetchingRc] = useState(false)
-  const [chargingWallet, setChargingWallet] = useState(false)
   const [downloadError, setDownloadError] = useState("")
   const [apiSteps, setApiSteps] = useState<RcApiStepStatus[] | null>(null)
   const [rcData, setRcData] = useState<any | null>(null)
@@ -83,28 +82,7 @@ export default function DashboardPage() {
   const [downloadType, setDownloadType] = useState<"png" | "pdf" | null>(null)
   const [downloadFileError, setDownloadFileError] = useState("")
   const eventSourceRef = useRef<EventSource | null>(null)
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace("/login")
-      return
-    }
-
-    if (user?.role === "admin") {
-      router.replace("/admin/dashboard")
-    }
-  }, [isAuthenticated, user?.role, router])
-
-  if (!isAuthenticated || !user) {
-    return null
-  }
-
-  const handleLogout = () => {
-    logout()
-    router.push("/")
-  }
-
-  if (user.role === "admin") return null
+  const isAdmin = user?.role === "admin"
 
   const resetDownloadCard = () => {
     setRcData(null)
@@ -114,10 +92,20 @@ export default function DashboardPage() {
     setAcceptedTerms(false)
     setDownloadRegistration("")
     setFetchingRc(false)
-    setChargingWallet(false)
     setDownloading(false)
     setDownloadType(null)
   }
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace("/login")
+      return
+    }
+
+    if (isAdmin) {
+      router.replace("/admin/dashboard")
+    }
+  }, [isAuthenticated, isAdmin, router])
 
   useEffect(() => {
     return () => {
@@ -135,7 +123,14 @@ export default function DashboardPage() {
     }, 30_000)
 
     return () => window.clearTimeout(timeoutId)
-  }, [downloading, rcData])
+  }, [downloading, rcData, resetDownloadCard])
+
+  if (!isAuthenticated || !user || isAdmin) return null
+
+  const handleLogout = () => {
+    void logout().catch(() => {})
+    router.push("/")
+  }
 
   const captureCombinedCanvas = async () => {
     const element = document.getElementById("rc-dashboard-capture")
@@ -272,7 +267,6 @@ export default function DashboardPage() {
     setRcData(null)
     setApiSteps(["active", "pending"])
     setFetchingRc(true)
-    setChargingWallet(false)
 
     eventSourceRef.current?.close()
     const source = new EventSource(`/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(reg)}&fresh=1`)
@@ -313,40 +307,18 @@ export default function DashboardPage() {
       setFetchingRc(false)
 
       if (!payload?.data) {
-        setDownloadError("Lookup failed")
+        setDownloadError(payload?.paymentRequired ? "Payment required to view RC." : "Lookup failed")
         return
       }
 
-      setChargingWallet(true)
-      void (async () => {
-        try {
-          const res = await fetch("/api/download/purchase", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ registrationNumber: reg, paymentMethod: "wallet" }),
-          })
-          const json = await res.json().catch(() => ({}))
-          if (!res.ok) {
-            setChargingWallet(false)
-            setDownloadError(json?.error || "Unable to process wallet payment")
-            return
-          }
-
-          await refreshUser()
-          setChargingWallet(false)
-          setRcData(payload.data)
-        } catch {
-          setChargingWallet(false)
-          setDownloadError("Unable to process wallet payment")
-        }
-      })()
+      setRcData(payload.data)
+      void refreshUser().catch(() => {})
     })
 
     source.addEventListener("not_found", (event) => {
       const payload = JSON.parse((event as MessageEvent).data || "{}")
       setDownloadError(payload?.error || "Registration number not found")
       setFetchingRc(false)
-      setChargingWallet(false)
       source.close()
     })
 
@@ -354,14 +326,12 @@ export default function DashboardPage() {
       const payload = JSON.parse((event as MessageEvent).data || "{}")
       setDownloadError(payload?.error || "Lookup failed")
       setFetchingRc(false)
-      setChargingWallet(false)
       source.close()
     })
 
     source.onerror = () => {
       setDownloadError("Lookup failed")
       setFetchingRc(false)
-      setChargingWallet(false)
       source.close()
     }
   }
@@ -536,11 +506,11 @@ export default function DashboardPage() {
 
                     <div className="rounded-xl border bg-white p-3">
                       <div className="flex items-start gap-3">
-                        <Checkbox
+                          <Checkbox
                           id="dashboard-terms"
                           checked={acceptedTerms}
                           onCheckedChange={(value) => setAcceptedTerms(value === true)}
-                          disabled={fetchingRc || chargingWallet}
+                          disabled={fetchingRc}
                         />
                         <div className="space-y-1">
                           <Label htmlFor="dashboard-terms" className="font-normal leading-relaxed">
@@ -558,10 +528,10 @@ export default function DashboardPage() {
                       className="w-full justify-start h-11 sm:h-12 text-sm sm:text-base"
                       size="lg"
                       onClick={startDownloadFlow}
-                      disabled={!downloadRegistration || !acceptedTerms || fetchingRc || chargingWallet}
+                      disabled={!downloadRegistration || !acceptedTerms || fetchingRc}
                     >
                       <Search className="h-5 w-5 mr-3" />
-                      {fetchingRc ? "Fetching..." : chargingWallet ? "Processing..." : "Fetch RC Details"}
+                      {fetchingRc ? "Fetching..." : "Fetch RC Details"}
                     </Button>
 
                     {(fetchingRc || apiSteps) && <RcApiProgressChecklist active={fetchingRc} steps={apiSteps} />}

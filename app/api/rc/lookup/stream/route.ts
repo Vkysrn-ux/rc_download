@@ -1,6 +1,7 @@
 import { dbQuery } from "@/lib/server/db"
 import { getCurrentUser } from "@/lib/server/session"
 import { ExternalApiError, lookupRc, normalizeRegistration, storeRcResult, type RcLookupProgressEvent } from "@/lib/server/rc-lookup"
+import { WalletError, chargeWalletForDownload } from "@/lib/server/wallet"
 
 const USER_PRICE = 20
 
@@ -67,13 +68,42 @@ export async function GET(req: Request) {
         }
 
         await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider, result.providerRef).catch(() => {})
-        writeEvent(controller, "done", {
-          ok: true,
-          registrationNumber: result.registrationNumber,
-          data: result.data,
-          provider: result.provider,
-          providerRef: result.providerRef,
-        })
+
+        if (user) {
+          try {
+            const charged = await chargeWalletForDownload({
+              userId: user.id,
+              registrationNumber: result.registrationNumber,
+              price: USER_PRICE,
+              description: `Vehicle RC Download - ${result.registrationNumber}`,
+            })
+            writeEvent(controller, "done", {
+              ok: true,
+              registrationNumber: result.registrationNumber,
+              transactionId: charged.transactionId,
+              walletCharged: true,
+              walletBalance: charged.walletBalance,
+              data: result.data,
+              provider: result.provider,
+              providerRef: result.providerRef,
+            })
+          } catch (error: any) {
+            if (error instanceof WalletError) {
+              writeEvent(controller, "server_error", { ok: false, error: error.message, status: error.status })
+            } else {
+              writeEvent(controller, "server_error", { ok: false, error: "Unable to charge wallet", status: 500 })
+            }
+          }
+        } else {
+          // Do not leak RC data to unauthenticated users; require payment to view/download.
+          writeEvent(controller, "done", {
+            ok: true,
+            registrationNumber: result.registrationNumber,
+            paymentRequired: true,
+            provider: result.provider,
+            providerRef: result.providerRef,
+          })
+        }
       } catch (error: any) {
         if (error instanceof ExternalApiError) {
           const status =

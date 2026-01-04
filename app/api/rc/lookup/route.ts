@@ -3,6 +3,7 @@ import { z } from "zod"
 import { getCurrentUser } from "@/lib/server/session"
 import { dbQuery } from "@/lib/server/db"
 import { lookupRc, storeRcResult, ExternalApiError, normalizeRegistration } from "@/lib/server/rc-lookup"
+import { WalletError, chargeWalletForDownload } from "@/lib/server/wallet"
 
 const LookupSchema = z.object({ registrationNumber: z.string().min(4).max(32) })
 
@@ -18,15 +19,17 @@ export async function GET(req: Request) {
   try {
     const registrationNumber = normalizeRegistration(reg)
     const user = await getCurrentUser().catch(() => null)
-    if (user) {
-      const balances = await dbQuery<{ wallet_balance: string | number }>(
-        "SELECT wallet_balance FROM users WHERE id = ? LIMIT 1",
-        [user.id],
-      )
-      const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
-      if (walletBalance < USER_PRICE) {
-        return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please pay to view RC." }, { status: 402 })
-      }
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Payment required to view RC." }, { status: 402 })
+    }
+
+    const balances = await dbQuery<{ wallet_balance: string | number }>(
+      "SELECT wallet_balance FROM users WHERE id = ? LIMIT 1",
+      [user.id],
+    )
+    const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
+    if (walletBalance < USER_PRICE) {
+      return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please recharge wallet." }, { status: 402 })
     }
 
     const result = await lookupRc(registrationNumber, { userId: user?.id ?? null, bypassCache })
@@ -34,14 +37,27 @@ export async function GET(req: Request) {
 
     await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider, result.providerRef).catch(() => {})
 
+    const charged = await chargeWalletForDownload({
+      userId: user.id,
+      registrationNumber: result.registrationNumber,
+      price: USER_PRICE,
+      description: `Vehicle RC Download - ${result.registrationNumber}`,
+    })
+
     return NextResponse.json({
       ok: true,
       registrationNumber: result.registrationNumber,
+      transactionId: charged.transactionId,
+      walletCharged: true,
+      walletBalance: charged.walletBalance,
       data: result.data,
       provider: result.provider,
       providerRef: result.providerRef,
     })
   } catch (error: any) {
+    if (error instanceof WalletError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: error.status })
+    }
     if (error instanceof ExternalApiError) {
       const status =
         error.status === 404 ? 404 : error.status === 503 ? 503 : error.status === 401 || error.status === 403 ? 502 : 502
@@ -59,15 +75,17 @@ export async function POST(req: Request) {
   try {
     const registrationNumber = normalizeRegistration(parsed.data.registrationNumber)
     const user = await getCurrentUser().catch(() => null)
-    if (user) {
-      const balances = await dbQuery<{ wallet_balance: string | number }>(
-        "SELECT wallet_balance FROM users WHERE id = ? LIMIT 1",
-        [user.id],
-      )
-      const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
-      if (walletBalance < USER_PRICE) {
-        return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please pay to view RC." }, { status: 402 })
-      }
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Payment required to view RC." }, { status: 402 })
+    }
+
+    const balances = await dbQuery<{ wallet_balance: string | number }>(
+      "SELECT wallet_balance FROM users WHERE id = ? LIMIT 1",
+      [user.id],
+    )
+    const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
+    if (walletBalance < USER_PRICE) {
+      return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please recharge wallet." }, { status: 402 })
     }
 
     const result = await lookupRc(registrationNumber, { userId: user?.id ?? null })
@@ -75,14 +93,27 @@ export async function POST(req: Request) {
 
     await storeRcResult(result.registrationNumber, user?.id ?? null, result.data, result.provider, result.providerRef).catch(() => {})
 
+    const charged = await chargeWalletForDownload({
+      userId: user.id,
+      registrationNumber: result.registrationNumber,
+      price: USER_PRICE,
+      description: `Vehicle RC Download - ${result.registrationNumber}`,
+    })
+
     return NextResponse.json({
       ok: true,
       registrationNumber: result.registrationNumber,
+      transactionId: charged.transactionId,
+      walletCharged: true,
+      walletBalance: charged.walletBalance,
       data: result.data,
       provider: result.provider,
       providerRef: result.providerRef,
     })
   } catch (error: any) {
+    if (error instanceof WalletError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: error.status })
+    }
     if (error instanceof ExternalApiError) {
       const status =
         error.status === 404 ? 404 : error.status === 503 ? 503 : error.status === 401 || error.status === 403 ? 502 : 502

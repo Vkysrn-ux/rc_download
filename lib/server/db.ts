@@ -38,3 +38,21 @@ export async function dbQuery<T = any>(sql: string, params: any[] = []): Promise
   return rows as T[]
 }
 
+export async function dbTransaction<T>(fn: (conn: mysql.PoolConnection) => Promise<T>): Promise<T> {
+  const conn = await getDbPool().getConnection()
+  try {
+    await conn.beginTransaction()
+    const result = await fn(conn)
+    await conn.commit()
+    return result
+  } catch (error) {
+    try {
+      await conn.rollback()
+    } catch {
+      // ignore rollback errors
+    }
+    throw error
+  } finally {
+    conn.release()
+  }
+}

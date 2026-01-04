@@ -14,8 +14,15 @@
 ## Email verification + OTP
 
 - Signup sends an email verification link.
-- Login supports **Password** or **OTP** (email).
+- Login supports **Password**, **OTP** (email), or **Phone OTP** (Firebase).
 - If SMTP isn’t configured (`SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`), the server logs the verification link / OTP code.
+
+## Phone OTP (Firebase)
+
+- Configure env vars in `.env.local` (see `.env.example`): `NEXT_PUBLIC_FIREBASE_*` + `FIREBASE_*`.
+- If you already created tables before this change, run a one-time migration:
+  - `ALTER TABLE users ADD COLUMN phone VARCHAR(32) NULL, ADD COLUMN phone_verified_at DATETIME NULL;`
+  - `ALTER TABLE users ADD UNIQUE KEY uniq_users_phone (phone);`
 
 ## Payment (UPI)
 

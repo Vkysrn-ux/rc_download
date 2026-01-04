@@ -63,7 +63,7 @@ export default function AdminDashboardPage() {
   }
 
   const handleLogout = () => {
-    logout()
+    void logout().catch(() => {})
     router.push("/")
   }
 

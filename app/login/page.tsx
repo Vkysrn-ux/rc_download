@@ -2,34 +2,43 @@
 
 import type React from "react"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
+import { getFirebaseClientAuth } from "@/lib/firebase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FileText } from "lucide-react"
+import { type ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth"
 
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, requestOtp, verifyOtp } = useAuth()
+  const { login, requestOtp, verifyOtp, loginWithPhoneIdToken } = useAuth()
 
   const verified = useMemo(() => searchParams.get("verified") === "1", [searchParams])
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [otp, setOtp] = useState("")
-  const [mode, setMode] = useState<"password" | "otp">("password")
-  const [otpSent, setOtpSent] = useState(false)
+  const [emailOtp, setEmailOtp] = useState("")
+  const [mode, setMode] = useState<"password" | "emailOtp" | "phoneOtp">("password")
+  const [emailOtpSent, setEmailOtpSent] = useState(false)
+
+  const [phone, setPhone] = useState("")
+  const [phoneOtp, setPhoneOtp] = useState("")
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false)
+  const [phoneConfirmation, setPhoneConfirmation] = useState<ConfirmationResult | null>(null)
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null)
   const [error, setError] = useState("")
   const [info, setInfo] = useState("")
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
-  const [sendingOtp, setSendingOtp] = useState(false)
+  const [sendingEmailOtp, setSendingEmailOtp] = useState(false)
+  const [sendingPhoneOtp, setSendingPhoneOtp] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,36 +56,36 @@ export default function LoginPage() {
     setLoading(false)
   }
 
-  const handleSendOtp = async () => {
-    setSendingOtp(true)
+  const handleSendEmailOtp = async () => {
+    setSendingEmailOtp(true)
     setError("")
     setInfo("")
-    setOtp("")
+    setEmailOtp("")
 
     const result = await requestOtp(email)
     if (!result.ok) {
       setError(result.error || "Failed to send OTP")
-      setSendingOtp(false)
+      setSendingEmailOtp(false)
       return
     }
 
-    setOtpSent(true)
+    setEmailOtpSent(true)
     if (result.debugOtp) {
       setInfo(`OTP generated (dev): ${result.debugOtp} (valid for 10 minutes).`)
-      setOtp(result.debugOtp)
+      setEmailOtp(result.debugOtp)
     } else {
       setInfo("OTP sent to your email (valid for 10 minutes). If you don’t receive it, configure SMTP or check server logs.")
     }
-    setSendingOtp(false)
+    setSendingEmailOtp(false)
   }
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleVerifyEmailOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
     setInfo("")
 
-    const result = await verifyOtp(email, otp)
+    const result = await verifyOtp(email, emailOtp)
     if (result.ok) {
       router.push("/dashboard")
     } else {
@@ -84,6 +93,73 @@ export default function LoginPage() {
     }
 
     setLoading(false)
+  }
+
+  const handleSendPhoneOtp = async () => {
+    setSendingPhoneOtp(true)
+    setError("")
+    setInfo("")
+    setPhoneOtp("")
+
+    try {
+      const auth = getFirebaseClientAuth()
+      try {
+        recaptchaRef.current?.clear()
+      } catch {
+        // ignore
+      }
+      recaptchaRef.current = null
+      const el = document.getElementById("recaptcha-container-login")
+      if (el) el.innerHTML = ""
+
+      const size = process.env.NODE_ENV === "production" ? "invisible" : "normal"
+      recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container-login", { size })
+
+      const confirmation = await signInWithPhoneNumber(auth, phone, recaptchaRef.current)
+      setPhoneConfirmation(confirmation)
+      setPhoneOtpSent(true)
+      setInfo("OTP sent to your phone (SMS).")
+    } catch (err: any) {
+      try {
+        recaptchaRef.current?.clear()
+      } catch {
+        // ignore
+      }
+      recaptchaRef.current = null
+      const message = err?.message || "Failed to send phone OTP"
+      setError(typeof message === "string" ? message : "Failed to send phone OTP")
+    } finally {
+      setSendingPhoneOtp(false)
+    }
+  }
+
+  const handleVerifyPhoneOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError("")
+    setInfo("")
+
+    try {
+      if (!phoneConfirmation) {
+        setError("Please request an OTP first.")
+        setLoading(false)
+        return
+      }
+
+      const credential = await phoneConfirmation.confirm(phoneOtp)
+      const idToken = await credential.user.getIdToken()
+      const result = await loginWithPhoneIdToken(idToken)
+      if (result.ok) {
+        router.push("/dashboard")
+      } else {
+        setError(result.error || "Phone login failed")
+      }
+    } catch (err: any) {
+      const message = err?.message || "OTP verification failed"
+      setError(typeof message === "string" ? message : "OTP verification failed")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleResendVerification = async () => {
@@ -125,6 +201,8 @@ export default function LoginPage() {
               className={mode === "password" ? "flex-1" : "flex-1 bg-transparent"}
               onClick={() => {
                 setMode("password")
+                setEmailOtpSent(false)
+                setPhoneOtpSent(false)
                 setError("")
                 setInfo("")
               }}
@@ -133,19 +211,40 @@ export default function LoginPage() {
             </Button>
             <Button
               type="button"
-              variant={mode === "otp" ? "default" : "outline"}
-              className={mode === "otp" ? "flex-1" : "flex-1 bg-transparent"}
+              variant={mode === "emailOtp" ? "default" : "outline"}
+              className={mode === "emailOtp" ? "flex-1" : "flex-1 bg-transparent"}
               onClick={() => {
-                setMode("otp")
+                setMode("emailOtp")
+                setEmailOtpSent(false)
+                setPhoneOtpSent(false)
                 setError("")
                 setInfo("")
               }}
             >
-              OTP
+              Email OTP
+            </Button>
+            <Button
+              type="button"
+              variant={mode === "phoneOtp" ? "default" : "outline"}
+              className={mode === "phoneOtp" ? "flex-1" : "flex-1 bg-transparent"}
+              onClick={() => {
+                setMode("phoneOtp")
+                setEmailOtpSent(false)
+                setPhoneOtpSent(false)
+                setError("")
+                setInfo("")
+              }}
+            >
+              Phone OTP
             </Button>
           </div>
 
-          <form onSubmit={mode === "otp" ? handleVerifyOtp : handleLogin} className="space-y-5">
+          <form
+            onSubmit={
+              mode === "emailOtp" ? handleVerifyEmailOtp : mode === "phoneOtp" ? handleVerifyPhoneOtp : handleLogin
+            }
+            className="space-y-5"
+          >
             {verified && (
               <Alert className="bg-green-50 border-green-200">
                 <AlertDescription className="text-green-800">Email verified. Please log in.</AlertDescription>
@@ -161,20 +260,84 @@ export default function LoginPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-base">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-11"
-              />
-            </div>
+            {mode === "phoneOtp" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-base">
+                    Phone (E.164, e.g. +9198...)
+                  </Label>
+                  <Input
+                    id="phone"
+                    inputMode="tel"
+                    placeholder="+91XXXXXXXXXX"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    className="h-11"
+                  />
+                </div>
+
+                {!phoneOtpSent ? (
+                  <Button
+                    type="button"
+                    className="w-full h-11 text-base"
+                    size="lg"
+                    onClick={handleSendPhoneOtp}
+                    disabled={!phone || sendingPhoneOtp}
+                  >
+                    {sendingPhoneOtp ? "Sending OTP..." : "Send OTP"}
+                  </Button>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="phoneOtp" className="text-base">
+                        OTP
+                      </Label>
+                      <Input
+                        id="phoneOtp"
+                        inputMode="numeric"
+                        placeholder="6-digit code"
+                        value={phoneOtp}
+                        onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        required
+                        className="h-11"
+                      />
+                    </div>
+                    <Button type="submit" className="w-full h-11 text-base" size="lg" disabled={loading}>
+                      {loading ? "Verifying..." : "Verify & Login"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full bg-transparent"
+                      onClick={() => {
+                        setPhoneOtpSent(false)
+                        setPhoneOtp("")
+                        setInfo("")
+                        setError("")
+                      }}
+                    >
+                      Use another method
+                    </Button>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-base">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="h-11"
+                  />
+                </div>
             {mode === "password" ? (
               <>
                 <div className="space-y-2">
@@ -208,15 +371,15 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                {!otpSent ? (
+                {!emailOtpSent ? (
                   <Button
                     type="button"
                     className="w-full h-11 text-base"
                     size="lg"
-                    onClick={handleSendOtp}
-                    disabled={!email || sendingOtp}
+                    onClick={handleSendEmailOtp}
+                    disabled={!email || sendingEmailOtp}
                   >
-                    {sendingOtp ? "Sending OTP..." : "Send OTP"}
+                    {sendingEmailOtp ? "Sending OTP..." : "Send OTP"}
                   </Button>
                 ) : (
                   <>
@@ -228,8 +391,8 @@ export default function LoginPage() {
                         id="otp"
                         inputMode="numeric"
                         placeholder="6-digit code"
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        value={emailOtp}
+                        onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                         required
                         className="h-11"
                       />
@@ -242,19 +405,25 @@ export default function LoginPage() {
                       variant="outline"
                       className="w-full bg-transparent"
                       onClick={() => {
-                        setOtpSent(false)
-                        setOtp("")
+                        setEmailOtpSent(false)
+                        setEmailOtp("")
                         setInfo("")
                         setError("")
                       }}
                     >
-                      Use password instead
+                      Use another method
                     </Button>
                   </>
                 )}
               </>
             )}
+              </>
+            )}
           </form>
+          <div
+            id="recaptcha-container-login"
+            className={process.env.NODE_ENV === "production" ? "sr-only" : "flex justify-center"}
+          />
         </CardContent>
         <CardFooter className="flex flex-col space-y-3 pt-6">
           <div className="text-base text-center text-muted-foreground">

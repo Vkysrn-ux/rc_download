@@ -22,7 +22,7 @@ function normalizeRegistration(value: string) {
 function DownloadPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, isAuthenticated } = useAuth()
+  const { isAuthenticated } = useAuth()
 
   const [registrationNumber, setRegistrationNumber] = useState("")
   const [loading, setLoading] = useState(false)
@@ -32,9 +32,6 @@ function DownloadPageContent() {
   const [apiSteps, setApiSteps] = useState<RcApiStepStatus[] | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const autoStartedRef = useRef(false)
-
-  const walletPrice = 20
-  const canPayFromWallet = Boolean(isAuthenticated && user && user.walletBalance >= walletPrice)
 
   useEffect(() => {
     return () => {
@@ -91,35 +88,12 @@ function DownloadPageContent() {
       source.close()
       setLoading(false)
 
-      if (!payload?.data) {
-        setError("Lookup failed")
-        return
-      }
-
-      if (canPayFromWallet) {
+      // Wallet users are charged server-side only after a successful lookup (and before any RC data is returned).
+      if (payload?.transactionId) {
         setConfirming(true)
-        void (async () => {
-          try {
-            const res = await fetch("/api/download/purchase", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ registrationNumber: regNumber, paymentMethod: "wallet" }),
-            })
-            const json = await res.json().catch(() => ({}))
-            if (!res.ok) {
-              setConfirming(false)
-              router.push(`/payment/confirm?registration=${encodeURIComponent(regNumber)}&source=upi`)
-              return
-            }
-
-            router.push(
-              `/payment/success?registration=${encodeURIComponent(regNumber)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`,
-            )
-          } catch {
-            setConfirming(false)
-            router.push(`/payment/confirm?registration=${encodeURIComponent(regNumber)}&source=upi`)
-          }
-        })()
+        router.push(
+          `/payment/success?registration=${encodeURIComponent(regNumber)}&transactionId=${encodeURIComponent(String(payload.transactionId))}`,
+        )
         return
       }
 

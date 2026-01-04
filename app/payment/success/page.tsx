@@ -31,15 +31,20 @@ function PaymentSuccessContent() {
 
   useEffect(() => {
     if (!registration) return
+    if (!transactionId) {
+      setRcData(null)
+      setRcError("Missing transactionId. Please complete payment to view RC.")
+      setRcLoading(false)
+      setApiSteps(null)
+      return
+    }
 
     setRcLoading(true)
     setRcError("")
     setApiSteps(["active", "pending"])
 
     eventSourceRef.current?.close()
-    const url = transactionId
-      ? `/api/rc/view/stream?transactionId=${encodeURIComponent(transactionId)}&fresh=1`
-      : `/api/rc/lookup/stream?registrationNumber=${encodeURIComponent(registration)}&fresh=1`
+    const url = `/api/rc/view/stream?transactionId=${encodeURIComponent(transactionId)}&fresh=1`
     const source = new EventSource(url)
     eventSourceRef.current = source
 

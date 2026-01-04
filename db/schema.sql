@@ -10,16 +10,19 @@ SET time_zone = '+00:00';
 CREATE TABLE IF NOT EXISTS users (
   id CHAR(36) NOT NULL,
   email VARCHAR(255) NOT NULL,
+  phone VARCHAR(32) NULL,
   name VARCHAR(255) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   role ENUM('user','admin') NOT NULL DEFAULT 'user',
   wallet_balance DECIMAL(10,2) NOT NULL DEFAULT 0,
   email_verified_at DATETIME NULL,
+  phone_verified_at DATETIME NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uniq_users_email (email)
+  UNIQUE KEY uniq_users_email (email),
+  UNIQUE KEY uniq_users_phone (phone)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS email_verification_tokens (
