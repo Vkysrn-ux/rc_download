@@ -2,42 +2,48 @@
 
 import type React from "react"
 
-import { useRef, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
-import { getFirebaseClientAuth } from "@/lib/firebase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { type ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth"
 
 export default function SignupPage() {
   const router = useRouter()
-  const { signup, loginWithPhoneIdToken } = useAuth()
+  const { signup } = useAuth()
 
-  const [method, setMethod] = useState<"email" | "phone">("email")
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [phoneOtp, setPhoneOtp] = useState("")
-  const [phoneOtpSent, setPhoneOtpSent] = useState(false)
-  const [phoneConfirmation, setPhoneConfirmation] = useState<ConfirmationResult | null>(null)
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null)
-  const [sendingPhoneOtp, setSendingPhoneOtp] = useState(false)
   const [error, setError] = useState("")
   const [info, setInfo] = useState("")
-  const [debugOtp, setDebugOtp] = useState<string>("")
   const [loading, setLoading] = useState(false)
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setInfo("")
+
+    const trimmedName = name.trim()
+    const trimmedEmail = email.trim()
+    const trimmedPhone = phone.trim()
+
+    if (!trimmedName) {
+      setError("Full name is required")
+      return
+    }
+
+    const phoneDigits = trimmedPhone.replace(/\D/g, "")
+    if (!trimmedPhone.startsWith("+") || phoneDigits.length < 8 || phoneDigits.length > 15) {
+      setError("Mobile number must include country code (e.g. +9198...)")
+      return
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match")
@@ -50,91 +56,16 @@ export default function SignupPage() {
     }
 
     setLoading(true)
-
-    const result = await signup(name, email, password)
+    const result = await signup(trimmedName, trimmedEmail, trimmedPhone, password)
     if (!result.ok) {
       setError(result.error || "Signup failed")
       setLoading(false)
       return
     }
 
-    if (result.debugOtp) setDebugOtp(result.debugOtp)
-    setInfo("Account created. Please verify your email using the OTP sent to your email.")
+    setInfo("Account created. Redirecting to login…")
     setLoading(false)
-    setTimeout(() => router.push(`/verify-email-otp?email=${encodeURIComponent(email)}`), 800)
-  }
-
-  const handleSendPhoneOtp = async () => {
-    setSendingPhoneOtp(true)
-    setError("")
-    setInfo("")
-    setPhoneOtp("")
-
-    if (!name.trim()) {
-      setError("Full name is required")
-      setSendingPhoneOtp(false)
-      return
-    }
-
-    try {
-      const auth = getFirebaseClientAuth()
-      try {
-        recaptchaRef.current?.clear()
-      } catch {
-        // ignore
-      }
-      recaptchaRef.current = null
-      const el = document.getElementById("recaptcha-container-signup")
-      if (el) el.innerHTML = ""
-
-      const size = process.env.NODE_ENV === "production" ? "invisible" : "normal"
-      recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container-signup", { size })
-
-      const confirmation = await signInWithPhoneNumber(auth, phone, recaptchaRef.current)
-      setPhoneConfirmation(confirmation)
-      setPhoneOtpSent(true)
-      setInfo("OTP sent to your phone (SMS).")
-    } catch (err: any) {
-      try {
-        recaptchaRef.current?.clear()
-      } catch {
-        // ignore
-      }
-      recaptchaRef.current = null
-      const message = err?.message || "Failed to send phone OTP"
-      setError(typeof message === "string" ? message : "Failed to send phone OTP")
-    } finally {
-      setSendingPhoneOtp(false)
-    }
-  }
-
-  const handleVerifyPhoneOtp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
-    setInfo("")
-
-    try {
-      if (!phoneConfirmation) {
-        setError("Please request an OTP first.")
-        setLoading(false)
-        return
-      }
-
-      const credential = await phoneConfirmation.confirm(phoneOtp)
-      const idToken = await credential.user.getIdToken()
-      const result = await loginWithPhoneIdToken(idToken, name.trim())
-      if (result.ok) {
-        router.push("/dashboard")
-      } else {
-        setError(result.error || "Phone signup failed")
-      }
-    } catch (err: any) {
-      const message = err?.message || "OTP verification failed"
-      setError(typeof message === "string" ? message : "OTP verification failed")
-    } finally {
-      setLoading(false)
-    }
+    setTimeout(() => router.push("/login?registered=1"), 700)
   }
 
   return (
@@ -144,50 +75,19 @@ export default function SignupPage() {
           <CardTitle className="text-2xl font-bold text-center">Create Account</CardTitle>
           <CardDescription className="text-center">Sign up to get discounted RC document downloads</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-2 mb-5">
-            <Button
-              type="button"
-              variant={method === "email" ? "default" : "outline"}
-              className={method === "email" ? "flex-1" : "flex-1 bg-transparent"}
-              onClick={() => {
-                setMethod("email")
-                setPhoneOtpSent(false)
-                setError("")
-                setInfo("")
-              }}
-            >
-              Email
-            </Button>
-            <Button
-              type="button"
-              variant={method === "phone" ? "default" : "outline"}
-              className={method === "phone" ? "flex-1" : "flex-1 bg-transparent"}
-              onClick={() => {
-                setMethod("phone")
-                setPhoneOtpSent(false)
-                setError("")
-                setInfo("")
-              }}
-            >
-              Phone OTP
-            </Button>
-          </div>
+        <CardContent className="space-y-4">
+          {info && (
+            <Alert className="bg-blue-50 border-blue-200">
+              <AlertDescription className="text-blue-900">{info}</AlertDescription>
+            </Alert>
+          )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          <form onSubmit={method === "phone" ? handleVerifyPhoneOtp : handleSignup} className="space-y-4">
-            {info && (
-              <Alert className="bg-blue-50 border-blue-200">
-                <AlertDescription className="text-blue-900">
-                  {info}
-                  {debugOtp ? <div className="mt-2 font-mono text-xs">OTP (dev): {debugOtp}</div> : null}
-                </AlertDescription>
-              </Alert>
-            )}
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+          <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
               <Input
@@ -199,19 +99,28 @@ export default function SignupPage() {
                 required
               />
             </div>
-            {method === "email" ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Mobile Number (with country code)</Label>
+              <Input
+                id="phone"
+                inputMode="tel"
+                placeholder="+91XXXXXXXXXX"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -237,63 +146,6 @@ export default function SignupPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Creating account..." : "Sign up"}
             </Button>
-              </>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone (E.164, e.g. +9198...)</Label>
-                  <Input
-                    id="phone"
-                    inputMode="tel"
-                    placeholder="+91XXXXXXXXXX"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                  />
-                </div>
-
-                {!phoneOtpSent ? (
-                  <Button type="button" className="w-full" onClick={handleSendPhoneOtp} disabled={!phone || sendingPhoneOtp}>
-                    {sendingPhoneOtp ? "Sending OTP..." : "Send OTP"}
-                  </Button>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="phoneOtp">OTP</Label>
-                      <Input
-                        id="phoneOtp"
-                        inputMode="numeric"
-                        placeholder="6-digit code"
-                        value={phoneOtp}
-                        onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        required
-                      />
-                    </div>
-                    <Button type="submit" className="w-full" disabled={loading}>
-                      {loading ? "Verifying..." : "Verify & Create account"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full bg-transparent"
-                      onClick={() => {
-                        setPhoneOtpSent(false)
-                        setPhoneOtp("")
-                        setInfo("")
-                        setError("")
-                      }}
-                    >
-                      Use email instead
-                    </Button>
-                  </>
-                )}
-
-                <div
-                  id="recaptcha-container-signup"
-                  className={process.env.NODE_ENV === "production" ? "sr-only" : "flex justify-center"}
-                />
-              </>
-            )}
           </form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-2">

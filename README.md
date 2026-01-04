@@ -6,23 +6,18 @@
 2. Create MySQL schema:
    - Create a database (e.g. `rc_download_app`)
    - Run `db/schema.sql`
+   - If you already created tables before the phone field existed, run: `db/migrations/001_add_users_phone.sql`
 3. Configure env:
    - Copy `.env.example` to `.env.local`
    - Fill `DB_*` and `AUTH_JWT_SECRET` (login will fail if missing)
 4. Run the app: `npm run dev`
 
-## Email verification + OTP
+## Auth
 
-- Signup sends an email verification link.
-- Login supports **Password**, **OTP** (email), or **Phone OTP** (Firebase).
-- If SMTP isn’t configured (`SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`), the server logs the verification link / OTP code.
-
-## Phone OTP (Firebase)
-
-- Configure env vars in `.env.local` (see `.env.example`): `NEXT_PUBLIC_FIREBASE_*` + `FIREBASE_*`.
-- If you already created tables before this change, run a one-time migration:
-  - `ALTER TABLE users ADD COLUMN phone VARCHAR(32) NULL, ADD COLUMN phone_verified_at DATETIME NULL;`
-  - `ALTER TABLE users ADD UNIQUE KEY uniq_users_phone (phone);`
+- Signup asks for **Name, Email, Mobile number, Password**.
+- Login supports **Email or Mobile number + Password**.
+- Forgot password sends a one-time code to the user's email address.
+- If SMTP isn’t configured (`SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`), the server logs the reset code.
 
 ## Payment (UPI)
 
@@ -56,6 +51,6 @@
 
 ## Admin
 
-- Create a normal account via `/signup`, verify the email, then promote it in MySQL:
-  - Example: `UPDATE users SET role='admin', email_verified_at=NOW() WHERE email='admin@example.com';`
+- Create a normal account via `/signup`, then promote it in MySQL:
+  - Example: `UPDATE users SET role='admin' WHERE email='admin@example.com';`
 - Admin can approve pending wallet recharges at `/admin/payments`.

@@ -370,7 +370,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
-            <Card className="border-primary/20 shadow-lg hover:shadow-xl transition-shadow">
+            <Card className="order-2 lg:order-1 border-primary/20 shadow-lg hover:shadow-xl transition-shadow">
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -437,7 +437,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-md lg:col-span-2">
+            <Card className="order-1 lg:order-2 shadow-md lg:col-span-2">
               <CardHeader>
                 <CardTitle className="text-xl">Download RC</CardTitle>
                 <CardDescription>Fetch RC details and download instantly</CardDescription>

@@ -14,15 +14,13 @@ interface User {
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>
-  loginWithPhoneIdToken: (idToken: string, name?: string) => Promise<{ ok: boolean; error?: string }>
+  login: (identifier: string, password: string) => Promise<{ ok: boolean; error?: string }>
   signup: (
     name: string,
     email: string,
+    phone: string,
     password: string,
-  ) => Promise<{ ok: boolean; error?: string; requiresVerification?: boolean; verificationMethod?: string; debugOtp?: string }>
-  requestOtp: (email: string) => Promise<{ ok: boolean; error?: string; debugOtp?: string }>
-  verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; error?: string }>
+  ) => Promise<{ ok: boolean; error?: string }>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
   updateWalletBalance: (amount: number) => void
@@ -46,65 +44,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(me)
   }
 
-  const signup = async (name: string, email: string, password: string) => {
+  const signup = async (name: string, email: string, phone: string, password: string) => {
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, phone, password }),
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) return { ok: false, error: json?.error || "Signup failed" }
-    return {
-      ok: true,
-      requiresVerification: Boolean(json?.requiresVerification),
-      verificationMethod: typeof json?.verificationMethod === "string" ? json.verificationMethod : undefined,
-      debugOtp: typeof json?.debugOtp === "string" ? json.debugOtp : undefined,
-    }
+    return { ok: true }
   }
 
-  const login = async (email: string, password: string) => {
+  const login = async (identifier: string, password: string) => {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) return { ok: false, error: json?.error || "Login failed" }
-    setUser(json.user)
-    return { ok: true }
-  }
-
-  const loginWithPhoneIdToken = async (idToken: string, name?: string) => {
-    const res = await fetch("/api/auth/phone/login", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ idToken, ...(name ? { name } : {}) }),
-    })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) return { ok: false, error: json?.error || "Phone login failed" }
-    setUser(json.user)
-    return { ok: true }
-  }
-
-  const requestOtp = async (email: string) => {
-    const res = await fetch("/api/auth/otp/request", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
-    })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) return { ok: false, error: json?.error || "Failed to send OTP" }
-    return { ok: true, debugOtp: typeof json?.debugOtp === "string" ? json.debugOtp : undefined }
-  }
-
-  const verifyOtp = async (email: string, otp: string) => {
-    const res = await fetch("/api/auth/otp/verify", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, otp }),
-    })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) return { ok: false, error: json?.error || "OTP verification failed" }
     setUser(json.user)
     return { ok: true }
   }
@@ -124,10 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isAuthenticated,
         login,
-        loginWithPhoneIdToken,
         signup,
-        requestOtp,
-        verifyOtp,
         logout,
         refreshUser,
         updateWalletBalance,

@@ -32,14 +32,13 @@ export default function HomePageClient() {
   const acceptCookies = () => {
     document.cookie = `${ACCEPT_COOKIE_NAME}=1; path=/; max-age=${ACCEPT_COOKIE_MAX_AGE}; samesite=lax`
     setShowCookieBanner(false)
-    router.push("/dashboard")
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-blue-50/30 to-background">
       <header className="border-b bg-white shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-center sm:justify-between">
+          <div className="hidden sm:flex items-center gap-3">
             <div className="p-2 bg-primary rounded-lg">
               <FileText className="h-5 w-5 text-primary-foreground" />
             </div>
@@ -48,7 +47,7 @@ export default function HomePageClient() {
               <div className="text-xs text-muted-foreground">Docx Solutions</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 justify-center w-full sm:w-auto">
             {isAuthenticated ? (
               <Button onClick={() => router.push("/dashboard")}>Go to Dashboard</Button>
             ) : (

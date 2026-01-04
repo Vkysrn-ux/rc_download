@@ -32,55 +32,23 @@ function getFrom() {
 }
 
 export async function sendVerificationEmail(toEmail: string, verifyUrl: string) {
-  const transport = getTransport()
-  const subject = "Verify your email for RC Download"
-  const text = `Verify your email by opening this link:\n\n${verifyUrl}\n\nIf you did not request this, ignore this email.`
-
-  if (!transport) {
-    console.log("[email] Verification link:", verifyUrl)
-    return
-  }
-
-  try {
-    await transport.sendMail({ from: getFrom(), to: toEmail, subject, text })
-  } catch (error) {
-    console.error("[email] Failed to send verification email:", error)
-    console.log("[email] Verification link (fallback):", verifyUrl)
-  }
+  console.log("[email] Verification email disabled. Link:", verifyUrl, "for", toEmail)
 }
 
-export async function sendOtpEmail(toEmail: string, otp: string) {
+export async function sendPasswordResetOtp(toEmail: string, otp: string) {
   const transport = getTransport()
-  const subject = "Your RC Download login OTP"
-  const text = `Your one-time login code is: ${otp}\n\nThis code expires in 10 minutes.`
+  const subject = "Your RC Download password reset code"
+  const text = `Your password reset code is: ${otp}\n\nThis code expires in 10 minutes. If you did not request this, you can ignore this email.`
 
   if (!transport) {
-    console.log("[email] OTP code:", otp, "for", toEmail)
+    console.log("[email] Password reset OTP code:", otp, "for", toEmail)
     return
   }
 
   try {
     await transport.sendMail({ from: getFrom(), to: toEmail, subject, text })
   } catch (error) {
-    console.error("[email] Failed to send OTP email:", error)
-    console.log("[email] OTP code (fallback):", otp, "for", toEmail)
-  }
-}
-
-export async function sendEmailVerificationOtp(toEmail: string, otp: string) {
-  const transport = getTransport()
-  const subject = "Verify your email for RC Download"
-  const text = `Your email verification code is: ${otp}\n\nThis code expires in 10 minutes.`
-
-  if (!transport) {
-    console.log("[email] Verification OTP code:", otp, "for", toEmail)
-    return
-  }
-
-  try {
-    await transport.sendMail({ from: getFrom(), to: toEmail, subject, text })
-  } catch (error) {
-    console.error("[email] Failed to send verification OTP email:", error)
-    console.log("[email] Verification OTP code (fallback):", otp, "for", toEmail)
+    console.error("[email] Failed to send password reset OTP email:", error)
+    console.log("[email] Password reset OTP code (fallback):", otp, "for", toEmail)
   }
 }

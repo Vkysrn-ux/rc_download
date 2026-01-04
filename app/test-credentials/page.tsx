@@ -17,7 +17,7 @@ export default function SetupPage() {
   }
 
   const sql = `-- Create an admin user after signing up:
-UPDATE users SET role='admin', email_verified_at=NOW() WHERE email='admin@example.com';`
+UPDATE users SET role='admin' WHERE email='admin@example.com';`
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -38,18 +38,25 @@ UPDATE users SET role='admin', email_verified_at=NOW() WHERE email='admin@exampl
               <CardDescription>Run the schema and configure MySQL env vars</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <div>Schema file: <code className="bg-muted px-2 py-1 rounded">db/schema.sql</code></div>
-              <div>Env template: <code className="bg-muted px-2 py-1 rounded">.env.example</code></div>
+              <div>
+                Schema file: <code className="bg-muted px-2 py-1 rounded">db/schema.sql</code>
+              </div>
+              <div>
+                Env template: <code className="bg-muted px-2 py-1 rounded">.env.example</code>
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>Email</CardTitle>
-              <CardDescription>Verification + OTP are sent via SMTP (or logged if SMTP isn’t configured)</CardDescription>
+              <CardDescription>Password reset codes are sent via SMTP (or logged if SMTP isn’t configured)</CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              If <code className="bg-muted px-2 py-1 rounded">SMTP_HOST</code>/<code className="bg-muted px-2 py-1 rounded">SMTP_USER</code>/<code className="bg-muted px-2 py-1 rounded">SMTP_PASS</code> are missing, the server logs the verification link / OTP code.
+              If{" "}
+              <code className="bg-muted px-2 py-1 rounded">SMTP_HOST</code>/
+              <code className="bg-muted px-2 py-1 rounded">SMTP_USER</code>/
+              <code className="bg-muted px-2 py-1 rounded">SMTP_PASS</code> are missing, the server logs the password reset code.
             </CardContent>
           </Card>
 
@@ -71,4 +78,3 @@ UPDATE users SET role='admin', email_verified_at=NOW() WHERE email='admin@exampl
     </div>
   )
 }
-
