@@ -69,7 +69,7 @@ function RcPreviewCard({ data, side }: { data: any; side: "front" | "back" }) {
 export default function DashboardPage() {
   const router = useRouter()
   const { user, isAuthenticated, logout, refreshUser } = useAuth()
-  const waNumber = (process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_NUMBER || "919585533692").replace(/[^0-9]/g, "")
+  const waNumber = (process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_NUMBER || "919677979393").replace(/[^0-9]/g, "")
   const waText = process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_TEXT || "Hi, I need help with RC Download."
   const waUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}` : "/helpdesk"
   const [downloadRegistration, setDownloadRegistration] = useState("")

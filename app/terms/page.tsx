@@ -191,7 +191,7 @@ export default function TermsPage() {
                 <Link href="/helpdesk" className="text-primary hover:underline">
                   helpdesk page
                 </Link>{" "}
-                or email support@vehiclercdownload.com, or call 095855 33692.
+                or email support@vehiclercdownload.com, or call 96779-79393.
               </p>
             </section>
           </CardContent>
