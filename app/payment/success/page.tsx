@@ -11,6 +11,7 @@ import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-ap
 import { RcDownloadStepper } from "@/components/rc-download-stepper"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
+import { canvasToPdfImage, getClientPdfSettings } from "@/lib/pdf-client"
 
 const PDF_COMBINED_WIDTH_MM = 320
 
@@ -114,7 +115,7 @@ function PaymentSuccessContent() {
     }
   }, [registration, transactionId])
 
-  const captureCombinedCanvas = async () => {
+  const captureCombinedCanvas = async (scale = 2) => {
     const element = document.getElementById("rc-combined-capture")
     if (!element) throw new Error("RC capture element not found")
     setDownloadError("")
@@ -169,7 +170,7 @@ function PaymentSuccessContent() {
 
     try {
       return await html2canvas(element, {
-        scale: 2,
+        scale,
         backgroundColor: "#ffffff",
         useCORS: true,
         scrollX: 0,
@@ -207,17 +208,28 @@ function PaymentSuccessContent() {
     setDownloadType("pdf")
 
     try {
-      const canvas = await captureCombinedCanvas()
-      const imgData = canvas.toDataURL("image/png")
+      const settings = getClientPdfSettings()
+      const canvas = await captureCombinedCanvas(settings.captureScale)
+      const { dataUrl, jsPdfFormat } = canvasToPdfImage(canvas, settings)
       const pdfHeightMm = Math.round((PDF_COMBINED_WIDTH_MM * canvas.height) / canvas.width * 10) / 10
 
       const pdf = new jsPDF({
         orientation: "landscape",
         unit: "mm",
         format: [PDF_COMBINED_WIDTH_MM, pdfHeightMm],
+        compress: settings.compressStreams,
       })
 
-      pdf.addImage(imgData, "PNG", 0, 0, PDF_COMBINED_WIDTH_MM, pdfHeightMm)
+      pdf.addImage(
+        dataUrl,
+        jsPdfFormat,
+        0,
+        0,
+        PDF_COMBINED_WIDTH_MM,
+        pdfHeightMm,
+        undefined,
+        settings.imageCompression === "NONE" ? undefined : settings.imageCompression,
+      )
       pdf.save(`RC_${registration}.pdf`)
     } catch (error) {
       console.error("Error generating PDF:", error)

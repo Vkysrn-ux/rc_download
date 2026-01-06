@@ -69,3 +69,13 @@
 - Create a normal account via `/signup`, then promote it in MySQL:
   - Example: `UPDATE users SET role='admin' WHERE email='admin@example.com';`
 - Admin can approve pending wallet recharges at `/admin/payments`.
+
+## PDF download size (compression)
+
+PDF downloads are generated client-side from a canvas snapshot. To reduce PDF size (e.g. avoid ~6MB PDFs), you can tune these optional env vars (all are `NEXT_PUBLIC_*`):
+
+- `NEXT_PUBLIC_PDF_IMAGE_FORMAT` (`jpeg` or `png`, default `jpeg`)
+- `NEXT_PUBLIC_PDF_JPEG_QUALITY` (`0.1`-`0.95`, default `0.7`, only for `jpeg`)
+- `NEXT_PUBLIC_PDF_CAPTURE_SCALE` (`0.5`-`2`, default `1.25`; lower = smaller file)
+- `NEXT_PUBLIC_PDF_COMPRESS` (`true`/`false`, default `true`)
+- `NEXT_PUBLIC_PDF_IMAGE_COMPRESSION` (`NONE`/`FAST`/`MEDIUM`/`SLOW`, default `FAST`)

@@ -4,22 +4,23 @@ import crypto from "crypto"
 import { dbQuery } from "@/lib/server/db"
 import { getCurrentUser } from "@/lib/server/session"
 import { cashfreeFetch, getCashfreeConfig } from "@/lib/server/cashfree"
+import { getRcDownloadPriceInr } from "@/lib/pricing"
 
 const CreateOrderSchema = z.discriminatedUnion("purpose", [
   z.object({
     purpose: z.literal("download"),
     registrationNumber: z.string().min(4).max(32),
     guest: z.boolean().optional(),
-    customerName: z.string().min(2).max(80).optional(),
-    customerEmail: z.string().email().max(255).optional(),
-    customerPhone: z.string().min(6).max(20).optional(),
+    customerName: z.string().max(80).optional(),
+    customerEmail: z.string().max(255).optional(),
+    customerPhone: z.string().max(30).optional(),
   }),
   z.object({
     purpose: z.literal("recharge"),
     amount: z.number().positive().max(100000),
-    customerName: z.string().min(2).max(80).optional(),
-    customerEmail: z.string().email().max(255).optional(),
-    customerPhone: z.string().min(6).max(20).optional(),
+    customerName: z.string().max(80).optional(),
+    customerEmail: z.string().max(255).optional(),
+    customerPhone: z.string().max(30).optional(),
   }),
 ])
 
@@ -29,6 +30,15 @@ function normalizeRegistration(value: string) {
 
 function normalizePhone(value: string) {
   return (value || "").replace(/[^\d+]/g, "")
+}
+
+function isValidEmail(value: string) {
+  return z.string().email().max(255).safeParse((value || "").trim()).success
+}
+
+function isValidPhone(value: string) {
+  const digits = (value || "").replace(/\D/g, "")
+  return digits.length >= 10 && digits.length <= 15
 }
 
 function makeOrderId(transactionId: string) {
@@ -80,7 +90,16 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null)
   const parsed = CreateOrderSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid input" }, { status: 400 })
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Invalid input",
+        details: process.env.NODE_ENV === "production" ? undefined : parsed.error.flatten(),
+      },
+      { status: 400 },
+    )
+  }
 
   const appBaseUrl = process.env.APP_BASE_URL || new URL(req.url).origin
   const user = await getCurrentUser().catch(() => null)
@@ -96,7 +115,7 @@ export async function POST(req: Request) {
 
   if (parsed.data.purpose === "download") {
     const isGuest = parsed.data.guest === true || !user
-    amountRupees = isGuest ? 30 : 20
+    amountRupees = getRcDownloadPriceInr(isGuest)
     type = "download"
     registrationNumber = normalizeRegistration(parsed.data.registrationNumber)
     description = `Vehicle RC Download - ${registrationNumber}`
@@ -113,8 +132,12 @@ export async function POST(req: Request) {
   const customerNameFromBody = "customerName" in parsed.data ? parsed.data.customerName : undefined
   const customerPhoneFromBody = "customerPhone" in parsed.data ? parsed.data.customerPhone : undefined
 
-  const customerEmail = user?.email || customerEmailFromBody || ""
-  let customerName = user?.name || customerNameFromBody || "Customer"
+  const customerEmailCandidate = (user?.email || customerEmailFromBody || "").trim()
+  const customerEmail = isValidEmail(customerEmailCandidate) ? customerEmailCandidate : ""
+
+  const customerNameCandidate = (user?.name || customerNameFromBody || "").trim()
+  let customerName = customerNameCandidate || "Customer"
+
   let customerPhone = ""
   if (userId) {
     const rows = await dbQuery<{ phone: string | null }>("SELECT phone FROM users WHERE id = ? LIMIT 1", [userId])
@@ -124,9 +147,12 @@ export async function POST(req: Request) {
     customerPhone = normalizePhone(customerPhoneFromBody ?? "")
   }
 
-  if (!customerEmail || !customerPhone) {
+  if (!customerEmail || !isValidPhone(customerPhone)) {
     return NextResponse.json(
-      { ok: false, error: "Missing customer email/phone for payment. Please add a phone number to your account or enter it at checkout." },
+      {
+        ok: false,
+        error: "Missing customer email/phone for payment. Please add a valid phone number to your account or enter it at checkout.",
+      },
       { status: 400 },
     )
   }

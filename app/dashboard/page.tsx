@@ -9,6 +9,7 @@ import jsPDF from "jspdf"
 
 import { useAuth } from "@/lib/auth-context"
 import { formatInr } from "@/lib/format"
+import { canvasToPdfImage, getClientPdfSettings } from "@/lib/pdf-client"
 import { RCDocumentTemplate } from "@/components/rc-document-template"
 import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
 import { Button } from "@/components/ui/button"
@@ -132,7 +133,7 @@ export default function DashboardPage() {
     router.push("/")
   }
 
-  const captureCombinedCanvas = async () => {
+  const captureCombinedCanvas = async (scale = 2) => {
     const element = document.getElementById("rc-dashboard-capture")
     if (!element) throw new Error("RC capture element not found")
     setDownloadFileError("")
@@ -185,7 +186,7 @@ export default function DashboardPage() {
 
     try {
       return await html2canvas(element, {
-        scale: 2,
+        scale,
         backgroundColor: "#ffffff",
         useCORS: true,
         scrollX: 0,
@@ -237,17 +238,28 @@ export default function DashboardPage() {
     setDownloadType("pdf")
 
     try {
-      const canvas = await captureCombinedCanvas()
-      const imgData = canvas.toDataURL("image/png")
+      const settings = getClientPdfSettings()
+      const canvas = await captureCombinedCanvas(settings.captureScale)
+      const { dataUrl, jsPdfFormat } = canvasToPdfImage(canvas, settings)
       const pdfHeightMm = Math.round((PDF_COMBINED_WIDTH_MM * canvas.height) / canvas.width * 10) / 10
 
       const pdf = new jsPDF({
         orientation: "landscape",
         unit: "mm",
         format: [PDF_COMBINED_WIDTH_MM, pdfHeightMm],
+        compress: settings.compressStreams,
       })
 
-      pdf.addImage(imgData, "PNG", 0, 0, PDF_COMBINED_WIDTH_MM, pdfHeightMm)
+      pdf.addImage(
+        dataUrl,
+        jsPdfFormat,
+        0,
+        0,
+        PDF_COMBINED_WIDTH_MM,
+        pdfHeightMm,
+        undefined,
+        settings.imageCompression === "NONE" ? undefined : settings.imageCompression,
+      )
       pdf.save(`RC_${normalizeRegistration(String(rcData?.registrationNumber || downloadRegistration || "Document"))}.pdf`)
     } catch (error) {
       setDownloadFileError(error instanceof Error ? error.message : "Failed to generate PDF")

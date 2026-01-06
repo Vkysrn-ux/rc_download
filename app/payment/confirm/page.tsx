@@ -8,6 +8,7 @@ import { loadCashfree } from "@/lib/cashfree-client"
 import { shareManualPaymentProof } from "@/lib/manual-payment-proof"
 import { RcDownloadStepper } from "@/components/rc-download-stepper"
 import { formatInr } from "@/lib/format"
+import { getRcDownloadPriceInr } from "@/lib/pricing"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -42,6 +43,10 @@ function buildUpiUri(upiId: string, payeeName: string, amount: number, note: str
   return `upi://pay?${params.toString()}`
 }
 
+function phoneDigits(value: string) {
+  return (value || "").replace(/\D/g, "")
+}
+
 function PaymentConfirmContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -66,7 +71,7 @@ function PaymentConfirmContent() {
   const [guestPhone, setGuestPhone] = useState("")
   const [cashfreePhone, setCashfreePhone] = useState("")
 
-  const price = isAuthenticated && !isGuest ? 20 : 30
+  const price = getRcDownloadPriceInr(isGuest || !isAuthenticated)
   const enableRazorpay = Boolean(config?.enableRazorpay)
   const enableManualUpi = Boolean(config?.enableManualUpi)
   const enableCashfree = Boolean(config?.enableCashfree)
@@ -332,10 +337,25 @@ function PaymentConfirmContent() {
       return
     }
 
-    if (!isAuthenticated && (!guestEmail.trim() || !guestPhone.trim())) {
-      setError("Please enter your email and phone number.")
-      setLoading(false)
-      return
+    if (!isAuthenticated) {
+      if (!guestEmail.trim() || !guestPhone.trim()) {
+        setError("Please enter your email and phone number.")
+        setLoading(false)
+        return
+      }
+      const digits = phoneDigits(guestPhone)
+      if (digits.length < 10 || digits.length > 15) {
+        setError("Please enter a valid phone number.")
+        setLoading(false)
+        return
+      }
+    } else if (cashfreePhone) {
+      const digits = phoneDigits(cashfreePhone)
+      if (digits.length < 10 || digits.length > 15) {
+        setError("Please enter a valid phone number.")
+        setLoading(false)
+        return
+      }
     }
 
     try {

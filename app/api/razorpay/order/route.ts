@@ -4,6 +4,7 @@ import crypto from "crypto"
 import { dbQuery } from "@/lib/server/db"
 import { getCurrentUser } from "@/lib/server/session"
 import { getRazorpayConfig, razorpayFetch } from "@/lib/server/razorpay"
+import { getRcDownloadPriceInr } from "@/lib/pricing"
 
 const CreateOrderSchema = z.discriminatedUnion("purpose", [
   z.object({
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
 
   if (parsed.data.purpose === "download") {
     const isGuest = parsed.data.guest === true || !user
-    amountRupees = isGuest ? 30 : 20
+    amountRupees = getRcDownloadPriceInr(isGuest)
     type = "download"
     registrationNumber = normalizeRegistration(parsed.data.registrationNumber)
     description = `Vehicle RC Download - ${registrationNumber}`

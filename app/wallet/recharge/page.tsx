@@ -42,6 +42,10 @@ function buildUpiUri(upiId: string, payeeName: string, amount: number, note: str
   return `upi://pay?${params.toString()}`
 }
 
+function phoneDigits(value: string) {
+  return (value || "").replace(/\D/g, "")
+}
+
 export default function WalletRechargePage() {
   const router = useRouter()
   const { user, isAuthenticated, refreshUser } = useAuth()
@@ -284,6 +288,15 @@ export default function WalletRechargePage() {
       setError("Cashfree is not enabled.")
       setLoading(false)
       return
+    }
+
+    if (cashfreePhone) {
+      const digits = phoneDigits(cashfreePhone)
+      if (digits.length < 10 || digits.length > 15) {
+        setError("Please enter a valid phone number.")
+        setLoading(false)
+        return
+      }
     }
 
     try {

@@ -113,7 +113,7 @@ export default function HomePageClient() {
                   </div>
                 </div>
                 <div className="flex items-baseline gap-2 pt-2">
-                  <span className="text-5xl font-bold text-foreground">₹30</span>
+                  <span className="text-5xl font-bold text-foreground">₹22</span>
                   <span className="text-lg text-muted-foreground">per download</span>
                 </div>
               </CardHeader>
@@ -156,8 +156,8 @@ export default function HomePageClient() {
                   </div>
                 </div>
                 <div className="flex items-baseline gap-3 pt-2">
-                  <span className="text-5xl font-bold text-primary">₹20</span>
-                  <span className="text-lg text-muted-foreground line-through">₹30</span>
+                  <span className="text-5xl font-bold text-primary">₹18</span>
+                  <span className="text-lg text-muted-foreground line-through">₹22</span>
                   <span className="text-lg text-muted-foreground">per download</span>
                 </div>
               </CardHeader>
