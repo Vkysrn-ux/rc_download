@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   type ENUM('recharge','download') NOT NULL,
   amount DECIMAL(10,2) NOT NULL,
   status ENUM('pending','completed','failed') NOT NULL DEFAULT 'pending',
-  payment_method ENUM('wallet','upi','razorpay') NULL,
+  payment_method ENUM('wallet','upi','razorpay','cashfree') NULL,
   description VARCHAR(255) NOT NULL,
   registration_number VARCHAR(32) NULL,
   gateway VARCHAR(32) NULL,

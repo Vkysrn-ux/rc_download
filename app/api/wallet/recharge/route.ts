@@ -12,6 +12,11 @@ export async function POST(req: Request) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
 
+  const manualUpiEnabled = (process.env.PAYMENTS_ENABLE_MANUAL_UPI ?? "").toLowerCase() === "true"
+  if (!manualUpiEnabled) {
+    return NextResponse.json({ ok: false, error: "Wallet recharge is temporarily disabled." }, { status: 503 })
+  }
+
   const body = await req.json().catch(() => null)
   const parsed = RechargeSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid input" }, { status: 400 })

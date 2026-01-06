@@ -11,6 +11,11 @@ const VerifySchema = z.object({
 })
 
 export async function POST(req: Request) {
+  const razorpayEnabled = (process.env.PAYMENTS_ENABLE_RAZORPAY ?? "").toLowerCase() === "true"
+  if (!razorpayEnabled) {
+    return NextResponse.json({ ok: false, error: "Razorpay is temporarily disabled." }, { status: 404 })
+  }
+
   const body = await req.json().catch(() => null)
   const parsed = VerifySchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid input" }, { status: 400 })

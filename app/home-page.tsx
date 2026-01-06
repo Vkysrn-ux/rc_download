@@ -125,7 +125,7 @@ export default function HomePageClient() {
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
-                    <span className="text-base">Secure Razorpay payment</span>
+                    <span className="text-base">Secure online payment</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
@@ -208,7 +208,7 @@ export default function HomePageClient() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground leading-relaxed">
-                  All transactions are secured with industry-standard encryption and processed via Razorpay
+                  All transactions are secured with industry-standard encryption and processed via a secure payment gateway
                 </p>
               </CardContent>
             </Card>
@@ -292,8 +292,8 @@ export default function HomePageClient() {
                   </a>
                 </li>
                 <li>
-                  <a href="tel:+919585533692" className="text-muted-foreground hover:text-primary transition-colors">
-                    095855 33692
+                  <a href="tel:+919677979393" className="text-muted-foreground hover:text-primary transition-colors">
+                    9677979393
                   </a>
                 </li>
               </ul>

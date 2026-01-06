@@ -26,14 +26,29 @@
   - `PAYMENT_PAYEE_NAME` (optional)
   - `PAYMENT_QR_URL` (optional, defaults to `/payment-qr.png`)
   - `PAYMENT_AUTO_APPROVE` (`true` to immediately mark payments completed and auto-credit wallet)
+- Enable manual UPI flows:
+  - `PAYMENTS_ENABLE_MANUAL_UPI=true`
+
+## Payment (Cashfree)
+
+- Configure:
+  - `CASHFREE_CLIENT_ID`
+  - `CASHFREE_CLIENT_SECRET`
+  - `CASHFREE_ENV` (`sandbox` or `production`)
+  - `CASHFREE_API_VERSION` (optional, default `2023-08-01`)
+  - `APP_BASE_URL` (your public base URL, used for Cashfree return URL)
+- Enable Cashfree flows:
+  - `PAYMENTS_ENABLE_CASHFREE=true`
 
 ## Payment (Razorpay)
 
 - Configure:
   - `RAZORPAY_KEY_ID`
   - `RAZORPAY_KEY_SECRET`
+- Enable Razorpay flows:
+  - `PAYMENTS_ENABLE_RAZORPAY=true`
 - If you already created tables before this change, run a one-time migration:
-  - `ALTER TABLE transactions MODIFY payment_method ENUM('wallet','upi','razorpay') NULL;`
+  - `ALTER TABLE transactions MODIFY payment_method ENUM('wallet','upi','razorpay','cashfree') NULL;`
   - `ALTER TABLE transactions ADD COLUMN gateway VARCHAR(32) NULL, ADD COLUMN gateway_order_id VARCHAR(64) NULL, ADD COLUMN gateway_payment_id VARCHAR(64) NULL, ADD COLUMN gateway_signature VARCHAR(255) NULL;`
   - `CREATE INDEX idx_tx_gateway_order ON transactions(gateway_order_id);`
 

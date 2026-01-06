@@ -4,12 +4,15 @@ import { useEffect, useMemo, useRef, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { loadRazorpayCheckout } from "@/lib/razorpay-client"
+import { loadCashfree } from "@/lib/cashfree-client"
 import { shareManualPaymentProof } from "@/lib/manual-payment-proof"
 import { RcDownloadStepper } from "@/components/rc-download-stepper"
 import { formatInr } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { ArrowLeft, Wallet, QrCode, Smartphone, CheckCircle } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 
@@ -18,6 +21,10 @@ type PaymentConfig = {
   payeeName: string
   qrUrl: string
   autoApprove: boolean
+  enableRazorpay: boolean
+  enableManualUpi: boolean
+  enableCashfree: boolean
+  cashfreeMode: "sandbox" | "production"
 }
 
 function clampUpiText(value: string, maxLength: number) {
@@ -41,7 +48,6 @@ function PaymentConfirmContent() {
   const { user, isAuthenticated, refreshUser } = useAuth()
 
   const registration = searchParams.get("registration") || ""
-  const source = searchParams.get("source") || ""
   const isGuest = searchParams.get("guest") === "true"
 
   const [loading, setLoading] = useState(false)
@@ -55,14 +61,33 @@ function PaymentConfirmContent() {
   const [sharing, setSharing] = useState(false)
   const [shareError, setShareError] = useState("")
   const proofRef = useRef<HTMLDivElement | null>(null)
+  const [guestName, setGuestName] = useState("")
+  const [guestEmail, setGuestEmail] = useState("")
+  const [guestPhone, setGuestPhone] = useState("")
+  const [cashfreePhone, setCashfreePhone] = useState("")
 
   const price = isAuthenticated && !isGuest ? 20 : 30
+  const enableRazorpay = Boolean(config?.enableRazorpay)
+  const enableManualUpi = Boolean(config?.enableManualUpi)
+  const enableCashfree = Boolean(config?.enableCashfree)
+  const canPayWithWallet = isAuthenticated && !isGuest
 
   useEffect(() => {
     fetch("/api/payment/config")
       .then((r) => r.json())
       .then((c) => setConfig(c))
-      .catch(() => setConfig({ upiId: "", payeeName: "", qrUrl: "", autoApprove: false }))
+      .catch(() =>
+        setConfig({
+          upiId: "",
+          payeeName: "",
+          qrUrl: "",
+          autoApprove: false,
+          enableRazorpay: false,
+          enableManualUpi: false,
+          enableCashfree: false,
+          cashfreeMode: "sandbox",
+        }),
+      )
   }, [])
 
   useEffect(() => {
@@ -290,6 +315,62 @@ function PaymentConfirmContent() {
     }
   }
 
+  const handleCashfreePayment = async () => {
+    setLoading(true)
+    setError("")
+    setInfo("")
+
+    if (!registration) {
+      setError("Missing registration number.")
+      setLoading(false)
+      return
+    }
+
+    if (!enableCashfree) {
+      setError("Cashfree is not enabled.")
+      setLoading(false)
+      return
+    }
+
+    if (!isAuthenticated && (!guestEmail.trim() || !guestPhone.trim())) {
+      setError("Please enter your email and phone number.")
+      setLoading(false)
+      return
+    }
+
+    try {
+      const res = await fetch("/api/cashfree/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          purpose: "download",
+          registrationNumber: registration,
+          guest: isGuest,
+          customerName: isAuthenticated ? user?.name : guestName || "Guest",
+          customerEmail: isAuthenticated ? user?.email : guestEmail,
+          customerPhone: isAuthenticated ? cashfreePhone || undefined : guestPhone,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json?.error || "Unable to start payment. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      const cashfree = await loadCashfree(json?.mode || config?.cashfreeMode || "sandbox")
+      if (!cashfree) throw new Error("Cashfree failed to load")
+
+      await cashfree.checkout({
+        paymentSessionId: json.paymentSessionId,
+        redirectTarget: "_self",
+      } as any)
+    } catch (e: any) {
+      setError(e?.message || "Unable to start payment. Please try again.")
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       <header className="border-b bg-white/80 backdrop-blur-sm">
@@ -346,7 +427,7 @@ function PaymentConfirmContent() {
                 </CardContent>
               </Card>
 
-              {source === "wallet" ? (
+              {canPayWithWallet ? (
                 <Card className="border-primary">
                   <CardHeader>
                     <div className="flex items-center gap-2">
@@ -387,24 +468,100 @@ function PaymentConfirmContent() {
                 </Card>
               ) : (
                 <>
-                  <Card className="border-primary">
-                    <CardHeader>
-                      <CardTitle>Pay with Razorpay</CardTitle>
-                      <CardDescription>Cards, UPI, NetBanking, Wallets</CardDescription>
-                    </CardHeader>
-                    <CardFooter>
-                      <Button
-                        className="w-full"
-                        size="lg"
-                        onClick={handleRazorpayPayment}
-                        disabled={loading || !registration || Boolean(manualTxn)}
-                      >
-                        {loading ? "Opening..." : `Pay INR ${price}`}
-                      </Button>
-                    </CardFooter>
-                  </Card>
+                  {!enableRazorpay && !enableManualUpi && !enableCashfree && (
+                    <Card className="border-primary/40">
+                      <CardHeader>
+                        <CardTitle>Payments Temporarily Unavailable</CardTitle>
+                        <CardDescription>We’re upgrading payments. Please login to pay from your wallet.</CardDescription>
+                      </CardHeader>
+                      <CardFooter>
+                        <Button className="w-full" size="lg" onClick={() => router.push("/login")}>
+                          Login
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  )}
 
-                  <Card className="border-primary/40">
+                  {enableCashfree && (
+                    <Card className="border-primary">
+                      <CardHeader>
+                        <CardTitle>Pay with Cashfree</CardTitle>
+                        <CardDescription>UPI, Cards, NetBanking</CardDescription>
+                      </CardHeader>
+                      {!isAuthenticated ? (
+                        <CardContent className="space-y-4">
+                          <div className="grid gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor="guestName">Name (optional)</Label>
+                              <Input id="guestName" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="guestEmail">Email</Label>
+                              <Input
+                                id="guestEmail"
+                                type="email"
+                                value={guestEmail}
+                                onChange={(e) => setGuestEmail(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="guestPhone">Phone</Label>
+                              <Input
+                                id="guestPhone"
+                                inputMode="tel"
+                                value={guestPhone}
+                                onChange={(e) => setGuestPhone(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </CardContent>
+                      ) : (
+                        <CardContent className="space-y-3">
+                          <div className="space-y-1">
+                            <Label htmlFor="cashfreePhone">Phone (if not saved)</Label>
+                            <Input
+                              id="cashfreePhone"
+                              inputMode="tel"
+                              placeholder="Enter phone only if Cashfree asks for it"
+                              value={cashfreePhone}
+                              onChange={(e) => setCashfreePhone(e.target.value)}
+                            />
+                          </div>
+                        </CardContent>
+                      )}
+                      <CardFooter>
+                        <Button
+                          className="w-full"
+                          size="lg"
+                          onClick={handleCashfreePayment}
+                          disabled={loading || !registration || Boolean(manualTxn)}
+                        >
+                          {loading ? "Opening..." : `Pay ${formatInr(price, { maximumFractionDigits: 0 })}`}
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  )}
+
+                  {enableRazorpay && (
+                    <Card className="border-primary">
+                      <CardHeader>
+                        <CardTitle>Pay with Razorpay</CardTitle>
+                        <CardDescription>Cards, UPI, NetBanking, Wallets</CardDescription>
+                      </CardHeader>
+                      <CardFooter>
+                        <Button
+                          className="w-full"
+                          size="lg"
+                          onClick={handleRazorpayPayment}
+                          disabled={loading || !registration || Boolean(manualTxn)}
+                        >
+                          {loading ? "Opening..." : `Pay INR ${price}`}
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  )}
+
+                  {enableManualUpi && <Card className="border-primary/40">
                     <CardHeader>
                       <CardTitle>Pay via UPI (Manual)</CardTitle>
                       <CardDescription>Scan QR or use the UPI ID</CardDescription>
@@ -509,7 +666,7 @@ function PaymentConfirmContent() {
                         </Button>
                       )}
                     </CardFooter>
-                  </Card>
+                  </Card>}
                 </>
               )}
             </>

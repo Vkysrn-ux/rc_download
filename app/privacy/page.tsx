@@ -59,7 +59,7 @@ export default function PrivacyPage() {
 
               <h3 className="text-lg font-medium text-foreground mt-4 mb-2">2.2 Payment Information</h3>
               <p className="text-muted-foreground leading-relaxed mb-2">
-                Payment processing is handled by Razorpay. We do not store complete credit/debit card information. We
+                Payment processing is handled by a third-party payment gateway. We do not store complete credit/debit card information. We
                 receive:
               </p>
               <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
@@ -103,7 +103,7 @@ export default function PrivacyPage() {
                   fulfil your request
                 </li>
                 <li>
-                  <strong>Payment Processors:</strong> Razorpay for secure payment processing
+                  <strong>Payment Processors:</strong> Third-party payment gateway for secure payment processing
                 </li>
                 <li>
                   <strong>Service Providers:</strong> Hosting and infrastructure providers
@@ -222,7 +222,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">10. Third-Party Links</h2>
               <p className="text-muted-foreground leading-relaxed">
-                Our Service may contain links to third-party websites (such as Razorpay payment gateway). We are not
+                Our Service may contain links to third-party websites (such as payment gateways). We are not
                 responsible for the privacy practices of these external sites. We encourage you to review their privacy
                 policies before providing any personal information.
               </p>
@@ -270,7 +270,7 @@ export default function PrivacyPage() {
                 <p className="text-muted-foreground">Near KVB Bank, Pappanaickenpalayam</p>
                 <p className="text-muted-foreground">Coimbatore, Tamil Nadu 641037, India</p>
                 <p className="text-muted-foreground mt-2">Email: support@vehiclercdownload.com</p>
-                <p className="text-muted-foreground">Phone: 095855 33692</p>
+                <p className="text-muted-foreground">Phone: 9677979393</p>
               </div>
             </section>
 

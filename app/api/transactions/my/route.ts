@@ -11,7 +11,7 @@ export async function GET() {
     type: "recharge" | "download"
     amount: string | number
     status: "pending" | "completed" | "failed"
-    payment_method: "wallet" | "upi" | "razorpay" | null
+    payment_method: "wallet" | "upi" | "razorpay" | "cashfree" | null
     description: string
     registration_number: string | null
     created_at: string

@@ -44,7 +44,7 @@ export default function HelpdeskPage() {
               <CardDescription>Speak with our support team</CardDescription>
             </CardHeader>
             <CardContent className="text-center space-y-2">
-              <p className="text-foreground font-semibold text-lg">095855 33692</p>
+              <p className="text-foreground font-semibold text-lg">9677979393</p>
               <p className="text-sm text-muted-foreground">Mon-Fri: 9:00 AM - 6:00 PM IST</p>
               <p className="text-sm text-muted-foreground">Sat: 9:00 AM - 1:00 PM IST</p>
             </CardContent>
@@ -161,7 +161,7 @@ export default function HelpdeskPage() {
                 <div>
                   <h3 className="font-semibold text-foreground mb-2">What payment methods are accepted?</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    We accept all major credit/debit cards, UPI, net banking, and wallet payments through Razorpay.
+                    We accept major credit/debit cards, UPI, net banking, and wallet payments through our payment gateway.
                     Registered users can also use wallet balance.
                   </p>
                 </div>
@@ -182,8 +182,7 @@ export default function HelpdeskPage() {
                 <div>
                   <h3 className="font-semibold text-foreground mb-2">How do I recharge my wallet?</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Logged-in users can recharge their wallet from the dashboard. Choose an amount and complete payment
-                    via Razorpay.
+                    Logged-in users can recharge their wallet from the dashboard when payment integration is available.
                   </p>
                 </div>
               </CardContent>

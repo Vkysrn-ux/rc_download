@@ -1,12 +1,13 @@
+import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/server/session"
 import { dbQuery } from "@/lib/server/db"
 
-export async function GET(_req: Request, ctx: { params: { userId: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ userId: string }> }) {
   const user = await getCurrentUser()
   if (!user || user.role !== "admin") return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
 
-  const { userId } = ctx.params
+  const { userId } = await ctx.params
   if (!userId) return NextResponse.json({ ok: false, error: "Invalid user" }, { status: 400 })
 
   const rows = await dbQuery<{

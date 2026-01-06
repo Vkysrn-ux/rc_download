@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { FileText, ArrowLeft, LogOut, Cloud, RefreshCcw, Search } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { FileText, ArrowLeft, LogOut, Cloud, RefreshCcw, Search, ChevronDown, ChevronRight } from "lucide-react"
 
 type RcUsageResponse = {
   ok: boolean
@@ -46,6 +47,7 @@ export default function AdminApiUsagePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [search, setSearch] = useState("")
+  const [recentRange, setRecentRange] = useState<"today" | "week" | "month" | "all">("today")
   const [counts, setCounts] = useState({ totalLookups: 0, surepassHits: 0, cacheReused: 0 })
   const [apiCalls, setApiCalls] = useState<RcUsageResponse["apiCalls"]>([])
   const [externalByVariant, setExternalByVariant] = useState<RcUsageResponse["externalByVariant"]>([])
@@ -56,6 +58,9 @@ export default function AdminApiUsagePage() {
   const [byVehicle, setByVehicle] = useState<RcUsageResponse["byVehicle"]>([])
   const [byUser, setByUser] = useState<RcUsageResponse["byUser"]>([])
   const [recent, setRecent] = useState<RcUsageResponse["recent"]>([])
+  const [topVehiclesOpen, setTopVehiclesOpen] = useState(false)
+  const [loadingTopVehicles, setLoadingTopVehicles] = useState(false)
+  const [topVehiclesLoaded, setTopVehiclesLoaded] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") {
@@ -69,7 +74,9 @@ export default function AdminApiUsagePage() {
   const load = async () => {
     setLoading(true)
     setError("")
-    const res = await fetch("/api/admin/rc-usage")
+    const res = await fetch(
+      "/api/admin/rc-usage?include=apiCalls,counts,externalByVariant,externalByProvider,cacheByVariant,cacheByProvider,byProvider,byUser,recent",
+    )
     const json = (await res.json().catch(() => ({}))) as RcUsageResponse
     if (!res.ok || !json.ok) {
       setError(json?.error || "Failed to load API usage")
@@ -83,23 +90,70 @@ export default function AdminApiUsagePage() {
     setCacheByVariant(json.cacheByVariant || [])
     setCacheByProvider(json.cacheByProvider || [])
     setByProvider(json.byProvider || [])
-    setByVehicle(json.byVehicle || [])
+    setByVehicle([])
+    setTopVehiclesLoaded(false)
     setByUser(json.byUser || [])
     setRecent(json.recent || [])
     setLoading(false)
   }
 
+  const loadTopVehicles = async () => {
+    setLoadingTopVehicles(true)
+    setError("")
+    const res = await fetch("/api/admin/rc-usage?include=byVehicle")
+    const json = (await res.json().catch(() => ({}))) as RcUsageResponse
+    if (!res.ok || !json.ok) {
+      setError(json?.error || "Failed to load top vehicles")
+      setLoadingTopVehicles(false)
+      return
+    }
+    setByVehicle(json.byVehicle || [])
+    setTopVehiclesLoaded(true)
+    setLoadingTopVehicles(false)
+  }
+
+  useEffect(() => {
+    if (topVehiclesOpen && !topVehiclesLoaded && !loadingTopVehicles) {
+      void loadTopVehicles()
+    }
+  }, [topVehiclesOpen, topVehiclesLoaded, loadingTopVehicles])
+
   const filteredRecent = useMemo(() => {
+    const now = new Date()
+    let start: Date | null = null
+
+    if (recentRange === "today") {
+      start = new Date(now)
+      start.setHours(0, 0, 0, 0)
+    } else if (recentRange === "week") {
+      start = new Date(now)
+      const day = start.getDay()
+      const diff = (day + 6) % 7
+      start.setDate(start.getDate() - diff)
+      start.setHours(0, 0, 0, 0)
+    } else if (recentRange === "month") {
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+      start.setHours(0, 0, 0, 0)
+    }
+
+    const withinRange = (recent || []).filter((r) => {
+      const timestamp = new Date(r.timestamp)
+      if (!Number.isFinite(timestamp.getTime())) return false
+      if (start && timestamp < start) return false
+      if (timestamp > now) return false
+      return true
+    })
+
     const q = search.trim().toLowerCase()
-    if (!q) return recent || []
-    return (recent || []).filter((r) => {
+    if (!q) return withinRange
+    return withinRange.filter((r) => {
       return (
         r.registrationNumber.toLowerCase().includes(q) ||
         r.user.name.toLowerCase().includes(q) ||
         r.user.email.toLowerCase().includes(q)
       )
     })
-  }, [recent, search])
+  }, [recent, search, recentRange])
 
   if (!isAuthenticated || !user || user.role !== "admin") return null
 
@@ -294,26 +348,51 @@ export default function AdminApiUsagePage() {
 
           <Card className="shadow-md">
             <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Top Vehicles</CardTitle>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-4 text-left"
+                onClick={() => setTopVehiclesOpen((v) => !v)}
+              >
+                <div className="flex items-center gap-2">
+                  {topVehiclesOpen ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <CardTitle className="text-xl">Top Vehicles</CardTitle>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {topVehiclesLoaded ? `${(byVehicle || []).length} shown` : "Click to load"}
+                </div>
+              </button>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {(byVehicle || []).length === 0 ? (
-                  <div className="text-sm text-muted-foreground">No data yet</div>
+            {topVehiclesOpen ? (
+              <CardContent>
+                {loadingTopVehicles ? (
+                  <div className="text-sm text-muted-foreground">Loading…</div>
                 ) : (
-                  (byVehicle || []).map((v) => (
-                    <div key={v.registrationNumber} className="flex items-center justify-between py-2 border-b last:border-0">
-                      <div className="font-mono text-sm">{v.registrationNumber}</div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <Badge variant="secondary">Total {v.total}</Badge>
-                        <Badge variant="default">Surepass {v.surepassHits}</Badge>
-                        <Badge variant="outline">Cache {v.cacheReused}</Badge>
-                      </div>
-                    </div>
-                  ))
+                  <div className="space-y-2">
+                    {(byVehicle || []).length === 0 ? (
+                      <div className="text-sm text-muted-foreground">No data yet</div>
+                    ) : (
+                      (byVehicle || []).map((v) => (
+                        <div
+                          key={v.registrationNumber}
+                          className="flex items-center justify-between py-2 border-b last:border-0"
+                        >
+                          <div className="font-mono text-sm">{v.registrationNumber}</div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <Badge variant="secondary">Total {v.total}</Badge>
+                            <Badge variant="default">Surepass {v.surepassHits}</Badge>
+                            <Badge variant="outline">Cache {v.cacheReused}</Badge>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
-              </div>
-            </CardContent>
+              </CardContent>
+            ) : null}
           </Card>
 
           <Card className="shadow-md">
@@ -348,6 +427,17 @@ export default function AdminApiUsagePage() {
               <div className="flex items-center justify-between gap-4">
                 <CardTitle className="text-xl">Recent Lookups</CardTitle>
                 <div className="flex items-center gap-2">
+                  <Select value={recentRange} onValueChange={(value) => setRecentRange(value as typeof recentRange)}>
+                    <SelectTrigger size="sm" className="w-[140px]">
+                      <SelectValue placeholder="Range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="week">This week</SelectItem>
+                      <SelectItem value="month">This month</SelectItem>
+                      <SelectItem value="all">All</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Search className="h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search by user or vehicle…"

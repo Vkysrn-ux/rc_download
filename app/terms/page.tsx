@@ -67,12 +67,12 @@ export default function TermsPage() {
               <p className="text-muted-foreground leading-relaxed mb-2">Service fees are as follows:</p>
               <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
                 <li>
-                  <strong>Guest Users:</strong> ₹30 per RC download (direct Razorpay payment)
+                  <strong>Guest Users:</strong> ₹30 per RC download (direct online payment)
                 </li>
                 <li>
                   <strong>Registered Users:</strong> ₹20 per RC download (via wallet balance)
                 </li>
-                <li>All payments are processed through Razorpay payment gateway</li>
+                <li>All payments are processed through a third-party payment gateway</li>
                 <li>Wallet recharges are non-refundable once processed</li>
                 <li>Prices are inclusive of all applicable taxes</li>
               </ul>

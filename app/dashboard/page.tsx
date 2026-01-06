@@ -559,7 +559,7 @@ export default function DashboardPage() {
                   </div>
                   <h3 className="font-bold text-lg">Add Money to Wallet</h3>
                   <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                    Recharge your wallet using Razorpay for secure and convenient transactions
+                    Recharge your wallet to pay for downloads (payment integration is being upgraded)
                   </p>
                 </div>
                 <div className="space-y-3">

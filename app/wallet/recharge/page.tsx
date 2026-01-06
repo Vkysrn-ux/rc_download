@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { loadRazorpayCheckout } from "@/lib/razorpay-client"
+import { loadCashfree } from "@/lib/cashfree-client"
 import { shareManualPaymentProof } from "@/lib/manual-payment-proof"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +21,10 @@ type PaymentConfig = {
   payeeName: string
   qrUrl: string
   autoApprove: boolean
+  enableRazorpay: boolean
+  enableManualUpi: boolean
+  enableCashfree: boolean
+  cashfreeMode: "sandbox" | "production"
 }
 
 function clampUpiText(value: string, maxLength: number) {
@@ -52,6 +57,7 @@ export default function WalletRechargePage() {
   const [manualTxn, setManualTxn] = useState<{ transactionId: string; status: string } | null>(null)
   const [sharing, setSharing] = useState(false)
   const [shareError, setShareError] = useState("")
+  const [cashfreePhone, setCashfreePhone] = useState("")
   const proofRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -74,8 +80,24 @@ export default function WalletRechargePage() {
     fetch("/api/payment/config")
       .then((r) => r.json())
       .then((c) => setConfig(c))
-      .catch(() => setConfig({ upiId: "", payeeName: "", qrUrl: "", autoApprove: false }))
+      .catch(() =>
+        setConfig({
+          upiId: "",
+          payeeName: "",
+          qrUrl: "",
+          autoApprove: false,
+          enableRazorpay: false,
+          enableManualUpi: false,
+          enableCashfree: false,
+          cashfreeMode: "sandbox",
+        }),
+      )
   }, [])
+
+  const enableRazorpay = Boolean(config?.enableRazorpay)
+  const enableManualUpi = Boolean(config?.enableManualUpi)
+  const enableCashfree = Boolean(config?.enableCashfree)
+  const anyPaymentEnabled = enableCashfree || enableRazorpay || enableManualUpi
 
   const numericAmount = useMemo(() => Number.parseFloat(amount || "0"), [amount])
 
@@ -106,6 +128,10 @@ export default function WalletRechargePage() {
   const handlePaymentClick = () => {
     setError("")
     if (!numericAmount || numericAmount <= 0) return
+    if (config && !anyPaymentEnabled) {
+      setError("Wallet recharge is temporarily unavailable while we upgrade payments.")
+      return
+    }
     setManualTxn(null)
     setShareError("")
     setShowPaymentModal(true)
@@ -250,6 +276,50 @@ export default function WalletRechargePage() {
     }
   }
 
+  const handleCashfreeRecharge = async () => {
+    setLoading(true)
+    setError("")
+
+    if (!enableCashfree) {
+      setError("Cashfree is not enabled.")
+      setLoading(false)
+      return
+    }
+
+    try {
+      const res = await fetch("/api/cashfree/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          purpose: "recharge",
+          amount: numericAmount,
+          customerPhone: cashfreePhone || undefined,
+          customerEmail: user?.email || undefined,
+          customerName: user?.name || undefined,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json?.error || "Unable to start payment. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      const cashfree = await loadCashfree(json?.mode || config?.cashfreeMode || "sandbox")
+      if (!cashfree) throw new Error("Cashfree failed to load")
+
+      await cashfree.checkout(
+        {
+          paymentSessionId: json.paymentSessionId,
+          redirectTarget: "_self",
+        } as any,
+      )
+    } catch (e: any) {
+      setError(e?.message || "Unable to start payment. Please try again.")
+      setLoading(false)
+    }
+  }
+
   if (!isAuthenticated) return null
 
   return (
@@ -284,12 +354,19 @@ export default function WalletRechargePage() {
                   <Wallet className="h-6 w-6" />
                   Add Money
                 </CardTitle>
-                <CardDescription>Pay via UPI (QR / UPI ID)</CardDescription>
+                <CardDescription>Recharge your wallet</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                {config && !anyPaymentEnabled && (
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <AlertDescription className="text-blue-900">
+                      Wallet recharge is temporarily unavailable while we upgrade payments.
+                    </AlertDescription>
                   </Alert>
                 )}
                 <div className="space-y-3">
@@ -329,7 +406,7 @@ export default function WalletRechargePage() {
                   className="w-full h-14 text-lg"
                   size="lg"
                   onClick={handlePaymentClick}
-                  disabled={!numericAmount || numericAmount <= 0}
+                  disabled={!numericAmount || numericAmount <= 0 || (config !== null && !anyPaymentEnabled)}
                 >
                   <CreditCard className="h-5 w-5 mr-3" />
                   Continue to Pay ₹{amount || "0"}
@@ -357,21 +434,47 @@ export default function WalletRechargePage() {
             <DialogDescription className="text-base">Pay ₹{amount} to recharge your wallet</DialogDescription>
           </DialogHeader>
 
-          {!manualTxn && (
+          {!manualTxn && (enableCashfree || enableRazorpay) && (
             <div className="space-y-3">
-              <Button
-                onClick={handleRazorpayRecharge}
-                disabled={loading || !numericAmount || numericAmount <= 0}
-                className="w-full"
-                size="lg"
-              >
-                {loading ? "Opening..." : "Pay with Razorpay"}
-              </Button>
-              <div className="text-xs text-muted-foreground text-center">or pay via UPI (manual)</div>
+              {enableCashfree && (
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="cashfreePhone">Phone (needed for Cashfree)</Label>
+                    <Input
+                      id="cashfreePhone"
+                      inputMode="tel"
+                      placeholder="Enter phone if not saved in your account"
+                      value={cashfreePhone}
+                      onChange={(e) => setCashfreePhone(e.target.value)}
+                      className="h-11"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleCashfreeRecharge}
+                    disabled={loading || !numericAmount || numericAmount <= 0}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {loading ? "Opening..." : "Pay with Cashfree"}
+                  </Button>
+                </div>
+              )}
+              {enableRazorpay && (
+                <Button
+                  onClick={handleRazorpayRecharge}
+                  disabled={loading || !numericAmount || numericAmount <= 0}
+                  className="w-full"
+                  size="lg"
+                >
+                  {loading ? "Opening..." : "Pay with Razorpay"}
+                </Button>
+              )}
+              {enableManualUpi && <div className="text-xs text-muted-foreground text-center">or pay via UPI (manual)</div>}
             </div>
           )}
 
-          {!config?.upiId ? (
+          {enableManualUpi ? (
+            !config?.upiId ? (
             <Alert variant="destructive">
               <AlertDescription>UPI is not configured. Set `PAYMENT_UPI_ID` in your environment.</AlertDescription>
             </Alert>
@@ -462,7 +565,14 @@ export default function WalletRechargePage() {
                 </p>
               )}
             </div>
-          )}
+          )
+          ) : !enableCashfree && !enableRazorpay ? (
+            <Alert className="bg-blue-50 border-blue-200">
+              <AlertDescription className="text-blue-900">
+                Wallet recharge is temporarily unavailable while we upgrade payments.
+              </AlertDescription>
+            </Alert>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

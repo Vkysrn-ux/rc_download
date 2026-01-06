@@ -16,6 +16,7 @@ interface User {
   walletBalance: number
   role: string
   isActive: boolean
+  rcLookups?: { total: number; external: number; cache: number }
 }
 
 interface Transaction {
@@ -187,6 +188,13 @@ export default function AdminUsersPage() {
                         <p className="text-sm text-muted-foreground">Wallet Balance</p>
                         <p className="text-2xl font-bold text-green-600">₹{selectedUser.walletBalance.toFixed(2)}</p>
                       </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted-foreground">RC Lookups</p>
+                        <p className="text-2xl font-bold">{selectedUser.rcLookups?.total ?? 0}</p>
+                        <p className="text-xs text-muted-foreground">
+                          External {selectedUser.rcLookups?.external ?? 0} • Cache {selectedUser.rcLookups?.cache ?? 0}
+                        </p>
+                      </div>
                       <Button variant="outline" size="sm" onClick={() => navigateToCredit(selectedUser.id)}>
                         Add Money
                       </Button>
@@ -356,6 +364,11 @@ export default function AdminUsersPage() {
                             <div className="flex items-center gap-1 text-sm">
                               <Wallet className="h-4 w-4 text-green-600" />
                               <span className="font-semibold">₹{u.walletBalance.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-sm">
+                              <FileText className="h-4 w-4 text-blue-600" />
+                              <span className="text-muted-foreground">RC Lookups:</span>
+                              <span className="font-semibold">{u.rcLookups?.total ?? 0}</span>
                             </div>
                           </div>
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>

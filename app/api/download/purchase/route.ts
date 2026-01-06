@@ -20,6 +20,7 @@ export async function POST(req: Request) {
   const parsed = PurchaseSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid input" }, { status: 400 })
 
+  const manualUpiEnabled = (process.env.PAYMENTS_ENABLE_MANUAL_UPI ?? "").toLowerCase() === "true"
   const user = await getCurrentUser().catch(() => null)
   const isGuest = parsed.data.guest === true || !user
   const price = isGuest ? 30 : 20
@@ -44,6 +45,10 @@ export async function POST(req: Request) {
       }
       return NextResponse.json({ ok: false, error: "Unable to process wallet payment" }, { status: 500 })
     }
+  }
+
+  if (!manualUpiEnabled) {
+    return NextResponse.json({ ok: false, error: "Manual UPI payments are temporarily disabled." }, { status: 503 })
   }
 
   // UPI payment: record transaction (pending unless autoApprove)
