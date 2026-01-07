@@ -74,6 +74,9 @@ export default function LoginPage() {
                 placeholder="you@example.com or +91XXXXXXXXXX"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
+                onFocus={() => {
+                  if (!identifier) setIdentifier("+91")
+                }}
                 required
                 className="h-11"
               />

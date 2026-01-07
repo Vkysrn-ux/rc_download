@@ -66,8 +66,6 @@ function PaymentConfirmContent() {
   const [sharing, setSharing] = useState(false)
   const [shareError, setShareError] = useState("")
   const proofRef = useRef<HTMLDivElement | null>(null)
-  const [guestName, setGuestName] = useState("")
-  const [guestEmail, setGuestEmail] = useState("")
   const [guestPhone, setGuestPhone] = useState("")
   const [cashfreePhone, setCashfreePhone] = useState("")
 
@@ -338,8 +336,8 @@ function PaymentConfirmContent() {
     }
 
     if (!isAuthenticated) {
-      if (!guestEmail.trim() || !guestPhone.trim()) {
-        setError("Please enter your email and phone number.")
+      if (!guestPhone.trim()) {
+        setError("Please enter your phone number.")
         setLoading(false)
         return
       }
@@ -366,8 +364,8 @@ function PaymentConfirmContent() {
           purpose: "download",
           registrationNumber: registration,
           guest: isGuest,
-          customerName: isAuthenticated ? user?.name : guestName || "Guest",
-          customerEmail: isAuthenticated ? user?.email : guestEmail,
+          customerName: isAuthenticated ? user?.name : undefined,
+          customerEmail: isAuthenticated ? user?.email : undefined,
           customerPhone: isAuthenticated ? cashfreePhone || undefined : guestPhone,
         }),
       })
@@ -510,29 +508,14 @@ function PaymentConfirmContent() {
                       </CardHeader>
                       {!isAuthenticated ? (
                         <CardContent className="space-y-4">
-                          <div className="grid gap-3">
-                            <div className="space-y-1">
-                              <Label htmlFor="guestName">Name (optional)</Label>
-                              <Input id="guestName" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor="guestEmail">Email</Label>
-                              <Input
-                                id="guestEmail"
-                                type="email"
-                                value={guestEmail}
-                                onChange={(e) => setGuestEmail(e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor="guestPhone">Phone</Label>
-                              <Input
-                                id="guestPhone"
-                                inputMode="tel"
-                                value={guestPhone}
-                                onChange={(e) => setGuestPhone(e.target.value)}
-                              />
-                            </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="guestPhone">Phone</Label>
+                            <Input
+                              id="guestPhone"
+                              inputMode="tel"
+                              value={guestPhone}
+                              onChange={(e) => setGuestPhone(e.target.value)}
+                            />
                           </div>
                         </CardContent>
                       ) : (

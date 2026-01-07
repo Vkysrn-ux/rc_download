@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { FileText, Wallet, Shield, Zap, CheckCircle2, Clock, Lock } from "lucide-react"
@@ -24,6 +26,64 @@ export default function HomePageClient() {
   const { isAuthenticated } = useAuth()
   const router = useRouter()
   const [showCookieBanner, setShowCookieBanner] = useState(false)
+  const [guestRegistration, setGuestRegistration] = useState("")
+  const [guestResult, setGuestResult] = useState<string | null>(null)
+  const [guestPhone, setGuestPhone] = useState("+91")
+
+  const handlePay = async () => {
+    const registration = (guestRegistration || "").trim()
+    if (!registration) {
+      setGuestResult("Enter vehicle registration to continue.")
+      return
+    }
+
+    const digitsOnly = (guestPhone || "").replace(/\D/g, "")
+    if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+      setGuestResult("Please enter a valid phone number (with country code).")
+      return
+    }
+
+    setGuestResult("Starting payment...")
+    try {
+      const res = await fetch("/api/cashfree/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          purpose: "download",
+          registrationNumber: registration,
+          guest: true,
+          customerPhone: guestPhone,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = json?.error || "Unable to start payment"
+        setGuestResult(String(msg))
+        return
+      }
+
+      const mode = json?.mode || "sandbox"
+      const loader = await import("@/lib/cashfree-client")
+      const cashfree = await loader.loadCashfree(mode)
+      if (!cashfree) throw new Error("Cashfree failed to load")
+
+      await cashfree.checkout({ paymentSessionId: json.paymentSessionId, redirectTarget: "_self" } as any)
+    } catch (e: any) {
+      setGuestResult(e?.message || "Payment failed")
+    }
+  }
+
+  useEffect(() => {
+    // If we returned from Cashfree, show a quick link to the success/download page inside the card.
+    const params = new URLSearchParams(window.location.search)
+    const transactionId = params.get("transactionId")
+    const registration = params.get("registration")
+    if (transactionId && registration) {
+      setGuestResult(
+        `PAY_SUCCESS::${registration}::${transactionId}`,
+      )
+    }
+  }, [])
 
   useEffect(() => {
     setShowCookieBanner(!getCookieValue(ACCEPT_COOKIE_NAME))
@@ -62,44 +122,10 @@ export default function HomePageClient() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-16">
+      <main className="container mx-auto px-4 pt-20 sm:pt-16 pb-16">
         <div className="max-w-6xl mx-auto space-y-16">
-          <section className="text-center space-y-6">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full text-sm font-medium text-blue-700">
-              <Shield className="h-4 w-4" />
-              Official Documents, One Platform
-            </div>
-            <h1 className="text-5xl md:text-6xl font-bold text-balance leading-tight">
-              Download Vehicle RC
-              <br />
-              <span className="text-primary">Documents Instantly</span>
-            </h1>
-            <p className="text-xl text-muted-foreground text-balance max-w-2xl mx-auto leading-relaxed">
-              Fast, secure, and reliable access to your Registration Certificate documents with instant digital delivery
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6">
-              <Button
-                size="lg"
-                className="text-base px-8"
-                onClick={() => router.push(isAuthenticated ? "/dashboard" : "/download")}
-              >
-                Download RC Now
-              </Button>
-              {!isAuthenticated && (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="text-base px-8 bg-transparent"
-                  onClick={() => router.push("/signup")}
-                >
-                  Register for Discount
-                </Button>
-              )}
-            </div>
-          </section>
-
           <section className="grid md:grid-cols-2 gap-8">
-            <Card className="relative overflow-hidden hover:shadow-lg transition-shadow">
+            <Card className="relative overflow-hidden hover:shadow-lg transition-shadow mt-6 md:mt-0">
               <CardHeader className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -112,30 +138,59 @@ export default function HomePageClient() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-baseline gap-2 pt-2">
-                  <span className="text-5xl font-bold text-foreground">₹22</span>
-                  <span className="text-lg text-muted-foreground">per download</span>
-                </div>
+                    <div className="flex items-baseline gap-2 pt-2">
+                      <span className="text-5xl font-bold text-foreground">₹22</span>
+                      <span className="text-lg text-muted-foreground">per download</span>
+                    </div>
               </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  <li className="flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
-                    <span className="text-base">No registration required</span>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
-                    <span className="text-base">Secure online payment</span>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
-                    <span className="text-base">Instant PDF download</span>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
-                    <span className="text-base">Valid RC certificate</span>
-                  </li>
-                </ul>
+                  <CardContent>
+                
+                <div className="mt-4">
+                  <Label htmlFor="guestRegistration" className="text-lg font-bold">Vehicle Registration</Label>
+                  <Input
+                    id="guestRegistration"
+                    placeholder="MH12AB1234"
+                    className="mt-2 text-lg font-bold"
+                    value={guestRegistration}
+                    onChange={(e) => setGuestRegistration(e.target.value.toUpperCase())}
+                  />
+                  <div className="mt-3">
+                    <Label htmlFor="guestPhone">Mobile Number</Label>
+                    <Input
+                      id="guestPhone"
+                      inputMode="tel"
+                      placeholder="+9198xxxxxxxx"
+                      className="mt-2"
+                      value={guestPhone}
+                      onChange={(e) => setGuestPhone(e.target.value)}
+                    />
+                  </div>
+                  <div className="mt-3 flex gap-3">
+                    <Button onClick={handlePay} className="w-full">
+                      Pay ₹22
+                    </Button>
+                  </div>
+                  <div className="mt-3 text-sm text-muted-foreground">
+                    {guestResult && guestResult.startsWith("PAY_SUCCESS::") ? (
+                      (() => {
+                        const [, registration, transactionId] = guestResult.split("::")
+                        return (
+                          <div>
+                            Payment confirmed.{' '}
+                            <a
+                              href={`/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`}
+                              className="text-primary underline"
+                            >
+                              Open download
+                            </a>
+                          </div>
+                        )
+                      })()
+                    ) : (
+                      guestResult
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -173,6 +228,14 @@ export default function HomePageClient() {
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
+                    <span className="text-base">Minimum recharge of ₹50 and get 4 RC downloads for first-time users</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
+                    <span className="text-base">Wallet transactions and more services available</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
                     <span className="text-base">Complete download history</span>
                   </li>
                   <li className="flex items-center gap-3">
@@ -182,6 +245,40 @@ export default function HomePageClient() {
                 </ul>
               </CardContent>
             </Card>
+          </section>
+
+          <section className="text-center space-y-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full text-sm font-medium text-blue-700">
+              <Shield className="h-4 w-4" />
+              Official Documents, One Platform
+            </div>
+            <h1 className="text-5xl md:text-6xl font-bold text-balance leading-tight">
+              Download Vehicle RC
+              <br />
+              <span className="text-primary">Documents Instantly</span>
+            </h1>
+            <p className="text-xl text-muted-foreground text-balance max-w-2xl mx-auto leading-relaxed">
+              Fast, secure, and reliable access to your Registration Certificate documents with instant digital delivery
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6">
+              <Button
+                size="lg"
+                className="text-base px-8"
+                onClick={() => router.push(isAuthenticated ? "/dashboard" : "/download")}
+              >
+                Download RC Now
+              </Button>
+              {!isAuthenticated && (
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="text-base px-8 bg-transparent"
+                  onClick={() => router.push("/signup")}
+                >
+                  Register for Discount
+                </Button>
+              )}
+            </div>
           </section>
 
           <section className="grid md:grid-cols-3 gap-8 pt-8">

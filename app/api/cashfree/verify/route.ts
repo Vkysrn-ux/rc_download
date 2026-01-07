@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { dbQuery } from "@/lib/server/db"
 import { cashfreeFetch } from "@/lib/server/cashfree"
+import { dbTransaction } from "@/lib/server/db"
 
 const VerifySchema = z.object({
   transactionId: z.string().uuid(),
@@ -49,20 +50,36 @@ export async function POST(req: Request) {
 
   const orderStatus = String(order.order_status || "").toUpperCase()
   if (orderStatus === "PAID") {
-    await dbQuery(
-      "UPDATE transactions SET status = 'completed', gateway_order_id = COALESCE(gateway_order_id, ?) WHERE id = ?",
-      [txn.gateway_order_id, txn.id],
-    )
+    await dbTransaction(async (conn) => {
+      const [rows] = await conn.query<
+        Array<{
+          id: string
+          user_id: string | null
+          type: "recharge" | "download"
+          status: "pending" | "completed" | "failed"
+          gateway_order_id: string | null
+        }>
+      >("SELECT id, user_id, type, status, gateway_order_id FROM transactions WHERE id = ? LIMIT 1 FOR UPDATE", [txn.id])
 
-    if (txn.type === "recharge" && txn.user_id) {
-      await dbQuery("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?", [expectedAmount, txn.user_id])
-    }
+      const locked = rows[0]
+      if (!locked) return
+      if (locked.status === "completed") return
+
+      await conn.query("UPDATE transactions SET status = 'completed', gateway_order_id = COALESCE(gateway_order_id, ?) WHERE id = ?", [
+        txn.gateway_order_id,
+        txn.id,
+      ])
+
+      if (locked.type === "recharge" && locked.user_id) {
+        await conn.query("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?", [expectedAmount, locked.user_id])
+      }
+    })
 
     return NextResponse.json({ ok: true, status: "completed" })
   }
 
   if (["CANCELLED", "EXPIRED", "TERMINATED", "FAILED"].includes(orderStatus)) {
-    await dbQuery("UPDATE transactions SET status = 'failed' WHERE id = ?", [txn.id])
+    await dbQuery("UPDATE transactions SET status = 'failed' WHERE id = ? AND status <> 'completed'", [txn.id])
     return NextResponse.json({ ok: false, status: "failed", error: `Order ${orderStatus.toLowerCase()}` }, { status: 402 })
   }
 

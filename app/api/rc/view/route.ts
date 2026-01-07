@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { lookupRc, storeRcResult, ExternalApiError } from "@/lib/server/rc-lookup"
 import { dbQuery } from "@/lib/server/db"
+import { ensureDownloadTransactionCompleted, type DownloadTransactionRow } from "@/lib/server/download-transaction"
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
@@ -9,21 +10,21 @@ export async function GET(req: Request) {
   const freshParam = (url.searchParams.get("fresh") || "").trim().toLowerCase()
   const bypassCache = freshParam === "1" || freshParam === "true" || freshParam === "yes"
 
-  const txns = await dbQuery<{
-    id: string
-    user_id: string | null
-    type: "recharge" | "download"
-    status: "pending" | "completed" | "failed"
-    registration_number: string | null
-  }>("SELECT id, user_id, type, status, registration_number FROM transactions WHERE id = ? LIMIT 1", [transactionId])
+  const txns = await dbQuery<DownloadTransactionRow>(
+    "SELECT id, user_id, type, status, registration_number, amount, payment_method, gateway, gateway_order_id FROM transactions WHERE id = ? LIMIT 1",
+    [transactionId],
+  )
 
-  const txn = txns[0]
+  let txn = txns[0]
   if (!txn || txn.type !== "download" || !txn.registration_number) {
     return NextResponse.json({ ok: false, error: "Invalid transaction" }, { status: 404 })
   }
 
   if (txn.status !== "completed") {
-    return NextResponse.json({ ok: false, error: "Payment pending. RC will be available after confirmation." }, { status: 402 })
+    txn = await ensureDownloadTransactionCompleted(txn)
+    if (txn.status !== "completed") {
+      return NextResponse.json({ ok: false, error: "Payment pending. RC will be available after confirmation." }, { status: 402 })
+    }
   }
 
   try {

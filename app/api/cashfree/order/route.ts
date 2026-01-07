@@ -147,15 +147,7 @@ export async function POST(req: Request) {
     customerPhone = normalizePhone(customerPhoneFromBody ?? "")
   }
 
-  if (!customerEmail || !isValidPhone(customerPhone)) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Missing customer email/phone for payment. Please add a valid phone number to your account or enter it at checkout.",
-      },
-      { status: 400 },
-    )
-  }
+  // Customer phone is optional for guest flows; Cashfree customer details will include it only if provided.
 
   if (!customerName || customerName.length < 2) customerName = "Customer"
 
@@ -173,18 +165,20 @@ export async function POST(req: Request) {
     order_currency?: string
   }
   try {
+    const customerDetails: Record<string, unknown> = {
+      customer_id: userId || "guest",
+      customer_name: customerName,
+    }
+    if (customerEmail) customerDetails.customer_email = customerEmail
+    if (customerPhone) customerDetails.customer_phone = customerPhone
+
     order = await cashfreeFetch<typeof order>("/pg/orders", {
       method: "POST",
       body: JSON.stringify({
         order_id: orderId,
         order_amount: amountRupees,
         order_currency: "INR",
-        customer_details: {
-          customer_id: userId || "guest",
-          customer_email: customerEmail,
-          customer_phone: customerPhone,
-          customer_name: customerName,
-        },
+        customer_details: customerDetails,
         order_meta: {
           return_url: returnUrl,
         },

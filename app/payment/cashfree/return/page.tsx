@@ -40,13 +40,14 @@ function CashfreeReturnContent() {
         return
       }
 
+      // Redirect back to home with params so the Guest Access card can show download actions inline.
       if (!registration) {
         router.replace(`/transactions`)
         return
       }
 
       router.replace(
-        `/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`,
+        `/?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`,
       )
     }
 

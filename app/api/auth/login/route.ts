@@ -14,6 +14,7 @@ function getPhoneCandidates(input: string): string[] {
   const digits = trimmed.replace(/\D/g, "")
   if (digits.length < 8 || digits.length > 15) return []
   const candidates = [trimmed, digits, `+${digits}`]
+  if (digits.length === 10) candidates.push(`+91${digits}`)
   return Array.from(new Set(candidates.filter(Boolean)))
 }
 
