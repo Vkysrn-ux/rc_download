@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 
 function CashfreeReturnContent() {
   const router = useRouter()
@@ -13,6 +14,8 @@ function CashfreeReturnContent() {
   const isRecharge = searchParams.get("recharge") === "1" || searchParams.get("recharge") === "true"
 
   const [error, setError] = useState("")
+  const [paymentState, setPaymentState] = useState<"verifying" | "completed" | "failed" | "cancelled" | "pending">("verifying")
+  const [message, setMessage] = useState("")
 
   useEffect(() => {
     if (!transactionId) {
@@ -31,10 +34,23 @@ function CashfreeReturnContent() {
       const json = await res.json().catch(() => ({}))
       if (cancelled) return
       if (!res.ok) {
-        setError(json?.error || "Payment verification failed.")
+        const status = json?.status || "failed"
+        const err = json?.error || "Payment verification failed."
+        setMessage(err)
+        // treat cancellations/failures specially
+        if (String(err).toLowerCase().includes("cancel") || String(status).toLowerCase() === "failed") {
+          setPaymentState("cancelled")
+        } else if (String(status).toLowerCase() === "pending") {
+          setPaymentState("pending")
+        } else {
+          setPaymentState("failed")
+        }
+        setError(err)
         return
       }
 
+      // success
+      setPaymentState("completed")
       if (isRecharge) {
         router.replace("/dashboard")
         return
@@ -69,14 +85,42 @@ function CashfreeReturnContent() {
             <CardDescription>Please wait while we confirm your payment.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : (
+            {paymentState === "verifying" && (
               <Alert className="bg-blue-50 border-blue-200">
                 <AlertDescription className="text-blue-900">Do not close this page.</AlertDescription>
               </Alert>
+            )}
+
+            {paymentState === "completed" && (
+              <Alert>
+                <AlertDescription>Payment successful. Redirecting…</AlertDescription>
+              </Alert>
+            )}
+
+            {paymentState === "pending" && (
+              <Alert>
+                <AlertDescription>Payment is still pending. You can check Transactions later.</AlertDescription>
+              </Alert>
+            )}
+
+            {paymentState === "failed" && (
+              <Alert variant="destructive">
+                <AlertDescription>{message || "Payment failed."}</AlertDescription>
+              </Alert>
+            )}
+
+            {paymentState === "cancelled" && (
+              <div className="space-y-3">
+                <Alert variant="destructive">
+                  <AlertDescription>Transaction cancelled.</AlertDescription>
+                </Alert>
+                <div className="flex gap-2">
+                  <Button onClick={() => router.replace("/")}>Go Home</Button>
+                  <Button variant="outline" onClick={() => router.replace(`/transactions`)}>
+                    View Transactions
+                  </Button>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

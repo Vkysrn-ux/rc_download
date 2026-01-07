@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -20,15 +21,25 @@ interface Transaction {
   description: string
   paymentMethod?: string | null
   registrationNumber?: string | null
+  customerPhone?: string | null
 }
 
 export default function AdminPaymentsPage() {
   const router = useRouter()
   const { user, isAuthenticated, logout } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [error, setError] = useState("")
+
+  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "failed">("all")
+
+  function extractPhone(desc?: string) {
+    if (!desc) return ""
+    const m = desc.match(/\+?\d{10,15}/g)
+    return m ? m[0] : ""
+  }
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") {
@@ -42,14 +53,17 @@ export default function AdminPaymentsPage() {
   const loadData = async () => {
     setLoading(true)
     setError("")
-    const res = await fetch("/api/admin/transactions")
+    const gateway = searchParams?.get("gateway") || ""
+    const apiPath = gateway && gateway.toLowerCase() === "cashfree" ? "/api/admin/transactions/cashfree" : "/api/admin/transactions"
+    const res = await fetch(apiPath)
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
       setError(json?.error || "Failed to load transactions")
       setLoading(false)
       return
     }
-    setTransactions(json.transactions || [])
+    const all = json.transactions || []
+    setTransactions(all)
     setLoading(false)
   }
 
@@ -140,61 +154,72 @@ export default function AdminPaymentsPage() {
               <CardTitle className="text-2xl">All Transactions</CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="mb-4 flex gap-2">
+                <Button size="sm" variant={statusFilter === "all" ? "default" : "outline"} onClick={() => setStatusFilter("all")}>All</Button>
+                <Button size="sm" variant={statusFilter === "completed" ? "default" : "outline"} onClick={() => setStatusFilter("completed")}>Successful</Button>
+                <Button size="sm" variant={statusFilter === "failed" ? "destructive" : "outline"} onClick={() => setStatusFilter("failed")}>Failed</Button>
+                <div className="ml-auto text-sm text-muted-foreground">Showing {transactions.length} transactions</div>
+              </div>
+
               <div className="space-y-3">
-                {transactions.map((txn) => (
-                  <Card key={txn.id} className="shadow-sm">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex gap-3 flex-1">
-                          <div className={`p-3 rounded-lg ${txn.type === "recharge" ? "bg-green-100" : "bg-blue-100"}`}>
-                            {txn.type === "recharge" ? (
-                              <CreditCard className="h-5 w-5 text-green-600" />
-                            ) : (
-                              <Download className="h-5 w-5 text-blue-600" />
-                            )}
-                          </div>
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-bold">{txn.description}</h3>
-                              <Badge variant={txn.type === "recharge" ? "default" : "secondary"}>{txn.type}</Badge>
-                              <Badge variant={txn.status === "completed" ? "default" : "secondary"}>{txn.status}</Badge>
+                {transactions
+                  .filter((t) => (statusFilter === "all" ? true : t.status === statusFilter))
+                  .map((txn) => (
+                    <Card key={txn.id} className="shadow-sm">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex gap-3 flex-1">
+                            <div className={`p-3 rounded-lg ${txn.type === "recharge" ? "bg-green-100" : "bg-blue-100"}`}>
+                              {txn.type === "recharge" ? (
+                                <CreditCard className="h-5 w-5 text-green-600" />
+                              ) : (
+                                <Download className="h-5 w-5 text-blue-600" />
+                              )}
                             </div>
-                            <p className="text-sm text-muted-foreground">
-                              {txn.userName ? `${txn.userName} (${txn.userEmail ?? ""})` : txn.userEmail ?? "Guest"}
-                            </p>
-                            {txn.registrationNumber && (
-                              <p className="text-sm font-mono bg-muted px-2 py-1 rounded inline-block">
-                                {txn.registrationNumber}
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold">{txn.description}</h3>
+                                <Badge variant={txn.type === "recharge" ? "default" : "secondary"}>{txn.type}</Badge>
+                                <Badge
+                                  variant={txn.status === "completed" ? "default" : txn.status === "failed" ? "destructive" : "outline"}
+                                >
+                                  {txn.status}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {txn.userName
+                                  ? `${txn.userName} (${txn.userEmail ?? ""})`
+                                  : (txn as any).customerPhone || extractPhone(txn.description) || txn.userEmail || "Guest"}
                               </p>
-                            )}
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                              <span>{new Date(txn.timestamp).toLocaleString()}</span>
-                              {txn.paymentMethod && <span>Payment: {txn.paymentMethod}</span>}
+                              {txn.registrationNumber && (
+                                <p className="text-sm font-mono bg-muted px-2 py-1 rounded inline-block">
+                                  {txn.registrationNumber}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <span>{new Date(txn.timestamp).toLocaleString()}</span>
+                                {txn.paymentMethod && <span>Payment: {txn.paymentMethod}</span>}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="text-right space-y-2">
-                          <div
-                            className={`text-2xl font-bold ${
-                              txn.type === "recharge" ? "text-green-600" : "text-blue-600"
-                            }`}
-                          >
-                            {txn.type === "recharge" ? "+" : ""}₹{Math.abs(txn.amount)}
+                          <div className="text-right space-y-2">
+                            <div className={`text-2xl font-bold ${txn.status === "completed" ? "text-emerald-600" : txn.status === "failed" ? "text-destructive" : txn.type === "recharge" ? "text-green-600" : "text-blue-600"}`}>
+                              {txn.type === "recharge" ? "+" : ""}₹{Math.abs(txn.amount)}
+                            </div>
+                            {txn.status === "pending" && txn.type === "recharge" && (
+                              <Button
+                                size="sm"
+                                onClick={() => approve(txn.id)}
+                                disabled={approvingId === txn.id}
+                              >
+                                {approvingId === txn.id ? "Approving..." : "Approve"}
+                              </Button>
+                            )}
                           </div>
-                          {txn.status === "pending" && txn.type === "recharge" && (
-                            <Button
-                              size="sm"
-                              onClick={() => approve(txn.id)}
-                              disabled={approvingId === txn.id}
-                            >
-                              {approvingId === txn.id ? "Approving..." : "Approve"}
-                            </Button>
-                          )}
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))}
               </div>
             </CardContent>
           </Card>

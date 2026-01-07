@@ -215,6 +215,14 @@ export default function AdminDashboardPage() {
                 <Button
                   variant="outline"
                   className="w-full justify-start h-12 text-base bg-transparent"
+                  onClick={() => router.push("/admin/payments?gateway=cashfree")}
+                >
+                  <CreditCard className="h-5 w-5 mr-3" />
+                  Cashfree Transactions
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-12 text-base bg-transparent"
                   onClick={() => router.push("/admin/payments")}
                 >
                   <CreditCard className="h-5 w-5 mr-3" />
@@ -246,19 +254,34 @@ export default function AdminDashboardPage() {
                   {recentTransactions
                     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                     .slice(0, 5)
-                    .map((txn) => (
-                      <div key={txn.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{txn.description}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(txn.timestamp).toLocaleDateString()}
-                          </p>
+                    .map((txn) => {
+                      const parts = txn.description.split(" - ")
+                      const mainDesc = parts.slice(0, 2).join(" - ")
+                      const phonePart = parts.length >= 3 ? parts.slice(2).join(" - ") : ""
+                      const isCompleted = txn.status === "completed"
+                      const isFailed = txn.status === "failed"
+                      const badgeClasses = isCompleted
+                        ? "bg-emerald-50 text-emerald-700 border-transparent"
+                        : isFailed
+                        ? "bg-red-50 text-destructive border-transparent"
+                        : ""
+
+                      return (
+                        <div key={txn.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{mainDesc}</p>
+                            {phonePart ? (
+                              <p className="text-xs text-muted-foreground">{phonePart}</p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">{new Date(txn.timestamp).toLocaleDateString()}</p>
+                            )}
+                          </div>
+                          <Badge className={badgeClasses}>
+                            {txn.type === "recharge" ? "+" : ""}₹{Math.abs(txn.amount)}
+                          </Badge>
                         </div>
-                        <Badge variant={txn.type === "recharge" ? "default" : "secondary"}>
-                          {txn.type === "recharge" ? "+" : ""}₹{Math.abs(txn.amount)}
-                        </Badge>
-                      </div>
-                    ))}
+                      )
+                    })}
                 </div>
               </CardContent>
             </Card>

@@ -118,7 +118,6 @@ export async function POST(req: Request) {
     amountRupees = getRcDownloadPriceInr(isGuest)
     type = "download"
     registrationNumber = normalizeRegistration(parsed.data.registrationNumber)
-    description = `Vehicle RC Download - ${registrationNumber}`
     userId = user?.id ?? null
   } else {
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
@@ -150,6 +149,13 @@ export async function POST(req: Request) {
   // Customer phone is optional for guest flows; Cashfree customer details will include it only if provided.
 
   if (!customerName || customerName.length < 2) customerName = "Customer"
+  // build description now that customer phone/registration are known
+  if (type === "download") {
+    const isGuest = parsed.data.purpose === "download" && (parsed.data.guest === true || !user)
+    // include phone in description for guest downloads so admins can see it in recent activity
+    const phoneSuffix = customerPhone ? ` - ${customerPhone}` : ""
+    description = `Vehicle RC Download - ${registrationNumber}${phoneSuffix}`
+  }
 
   const returnUrlBase = `${appBaseUrl}/payment/cashfree/return?transactionId=${encodeURIComponent(transactionId)}`
   const returnUrl =

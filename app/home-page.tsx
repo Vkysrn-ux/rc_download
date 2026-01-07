@@ -155,7 +155,7 @@ export default function HomePageClient() {
                     onChange={(e) => setGuestRegistration(e.target.value.toUpperCase())}
                   />
                   <div className="mt-3">
-                    <Label htmlFor="guestPhone">Mobile Number</Label>
+                    <Label htmlFor="guestPhone">Whatsapp Number</Label>
                     <Input
                       id="guestPhone"
                       inputMode="tel"
