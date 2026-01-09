@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
 import { Open_Sans } from "next/font/google"
 import { AuthProvider } from "@/lib/auth-context"
+import WhatsAppSupportFab from "@/components/whatsapp-support-fab"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${openSans.variable} font-sans antialiased`}>
         <AuthProvider>{children}</AuthProvider>
+        <WhatsAppSupportFab />
         <Analytics />
       </body>
     </html>
