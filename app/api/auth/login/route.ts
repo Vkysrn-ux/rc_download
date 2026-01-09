@@ -90,6 +90,7 @@ export async function POST(req: Request) {
       user: {
         id: user.id,
         email: user.email,
+        phone: user.phone,
         name: user.name,
         walletBalance: Number(user.wallet_balance),
         role: user.role,

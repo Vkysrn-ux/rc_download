@@ -68,6 +68,11 @@ function PaymentConfirmContent() {
   const proofRef = useRef<HTMLDivElement | null>(null)
   const [guestPhone, setGuestPhone] = useState("")
   const [cashfreePhone, setCashfreePhone] = useState("")
+  const savedPhoneDigits = phoneDigits(user?.phone || "")
+  const hasSavedPhone = savedPhoneDigits.length >= 10 && savedPhoneDigits.length <= 15
+  const maskedSavedPhone = hasSavedPhone
+    ? `${"*".repeat(Math.max(0, savedPhoneDigits.length - 4))}${savedPhoneDigits.slice(-4)}`
+    : ""
 
   const price = getRcDownloadPriceInr(isGuest || !isAuthenticated)
   const enableRazorpay = Boolean(config?.enableRazorpay)
@@ -335,25 +340,20 @@ function PaymentConfirmContent() {
       return
     }
 
-    if (!isAuthenticated) {
-      if (!guestPhone.trim()) {
-        setError("Please enter your phone number.")
-        setLoading(false)
-        return
-      }
-      const digits = phoneDigits(guestPhone)
-      if (digits.length < 10 || digits.length > 15) {
-        setError("Please enter a valid phone number.")
-        setLoading(false)
-        return
-      }
-    } else if (cashfreePhone) {
-      const digits = phoneDigits(cashfreePhone)
-      if (digits.length < 10 || digits.length > 15) {
-        setError("Please enter a valid phone number.")
-        setLoading(false)
-        return
-      }
+    const effectivePhoneDigits =
+      !isAuthenticated || isGuest ? phoneDigits(guestPhone) : hasSavedPhone ? savedPhoneDigits : phoneDigits(cashfreePhone)
+
+    if (!effectivePhoneDigits.trim()) {
+      setError("Please enter your phone number.")
+      setLoading(false)
+      return
+    }
+
+    const digits = effectivePhoneDigits
+    if (digits.length < 10 || digits.length > 15) {
+      setError("Please enter a valid phone number.")
+      setLoading(false)
+      return
     }
 
     try {
@@ -366,7 +366,7 @@ function PaymentConfirmContent() {
           guest: isGuest,
           customerName: isAuthenticated ? user?.name : undefined,
           customerEmail: isAuthenticated ? user?.email : undefined,
-          customerPhone: isAuthenticated ? cashfreePhone || undefined : guestPhone,
+          customerPhone: effectivePhoneDigits || undefined,
         }),
       })
       const json = await res.json().catch(() => ({}))
@@ -506,7 +506,7 @@ function PaymentConfirmContent() {
                         <CardTitle>Pay with Cashfree</CardTitle>
                         <CardDescription>UPI, Cards, NetBanking</CardDescription>
                       </CardHeader>
-                      {!isAuthenticated ? (
+                      {!isAuthenticated || isGuest ? (
                         <CardContent className="space-y-4">
                           <div className="space-y-1">
                             <Label htmlFor="guestPhone">Phone</Label>
@@ -520,16 +520,22 @@ function PaymentConfirmContent() {
                         </CardContent>
                       ) : (
                         <CardContent className="space-y-3">
-                          <div className="space-y-1">
-                            <Label htmlFor="cashfreePhone">Phone (if not saved)</Label>
-                            <Input
-                              id="cashfreePhone"
-                              inputMode="tel"
-                              placeholder="Enter phone only if Cashfree asks for it"
-                              value={cashfreePhone}
-                              onChange={(e) => setCashfreePhone(e.target.value)}
-                            />
-                          </div>
+                          {hasSavedPhone ? (
+                            <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                              Using saved mobile for Cashfree: <span className="font-mono">{maskedSavedPhone}</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <Label htmlFor="cashfreePhone">Phone</Label>
+                              <Input
+                                id="cashfreePhone"
+                                inputMode="tel"
+                                placeholder="Enter phone number"
+                                value={cashfreePhone}
+                                onChange={(e) => setCashfreePhone(e.target.value)}
+                              />
+                            </div>
+                          )}
                         </CardContent>
                       )}
                       <CardFooter>

@@ -6,6 +6,7 @@ import { createContext, useContext, useState, useEffect } from "react"
 interface User {
   id: string
   email: string
+  phone?: string | null
   name: string
   walletBalance: number
   role?: "user" | "admin"

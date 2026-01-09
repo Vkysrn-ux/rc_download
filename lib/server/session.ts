@@ -55,6 +55,7 @@ export async function clearSessionCookie() {
 export type PublicUser = {
   id: string
   email: string
+  phone: string | null
   name: string
   walletBalance: number
   role: "user" | "admin"
@@ -68,17 +69,31 @@ export async function getCurrentUser(): Promise<PublicUser | null> {
   const payload = verifySession(token)
   if (!payload?.sub) return null
 
-  const users = await dbQuery<{
+  let users: Array<{
     id: string
     email: string
+    phone: string | null
     name: string
     wallet_balance: string | number
     role: "user" | "admin"
     is_active: number
-  }>(
-    "SELECT id, email, name, wallet_balance, role, is_active FROM users WHERE id = ? LIMIT 1",
-    [payload.sub],
-  )
+  }> = []
+  try {
+    users = await dbQuery(
+      "SELECT id, email, phone, name, wallet_balance, role, is_active FROM users WHERE id = ? LIMIT 1",
+      [payload.sub],
+    )
+  } catch (error: any) {
+    const msg = typeof error?.message === "string" ? error.message : ""
+    if (error?.code === "ER_BAD_FIELD_ERROR" && msg.toLowerCase().includes("phone")) {
+      users = await dbQuery(
+        "SELECT id, email, name, wallet_balance, role, is_active FROM users WHERE id = ? LIMIT 1",
+        [payload.sub],
+      )
+    } else {
+      throw error
+    }
+  }
 
   const user = users[0]
   if (!user) return null
@@ -87,6 +102,7 @@ export async function getCurrentUser(): Promise<PublicUser | null> {
   return {
     id: user.id,
     email: user.email,
+    phone: "phone" in user ? user.phone : null,
     name: user.name,
     walletBalance: Number(user.wallet_balance),
     role: user.role,

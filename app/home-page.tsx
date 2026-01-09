@@ -354,14 +354,7 @@ export default function HomePageClient() {
             </div>
 
             <div className="flex justify-center gap-4 pt-6">
-              <button
-                type="button"
-                onClick={() => setShowVahanPreview(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-50 rounded-full text-sm font-medium text-foreground"
-              >
-                {/* <span style={{ fontSize: 12 }}>👁️</span> */}
-                Vahan
-              </button>
+              
             </div>
           </section>
 

@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Wallet, QrCode, Smartphone, CreditCard } from "lucide-react"
+import { ArrowLeft, Wallet, QrCode, Smartphone, CreditCard, CheckCircle2 } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 const PRESET_AMOUNTS = [50, 100, 200, 500, 1000]
@@ -63,6 +63,12 @@ export default function WalletRechargePage() {
   const [shareError, setShareError] = useState("")
   const [cashfreePhone, setCashfreePhone] = useState("")
   const proofRef = useRef<HTMLDivElement | null>(null)
+
+  const savedPhoneDigits = phoneDigits(user?.phone || "")
+  const hasSavedPhone = savedPhoneDigits.length >= 10 && savedPhoneDigits.length <= 15
+  const maskedSavedPhone = hasSavedPhone
+    ? `${"*".repeat(Math.max(0, savedPhoneDigits.length - 4))}${savedPhoneDigits.slice(-4)}`
+    : ""
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/login")
@@ -138,6 +144,10 @@ export default function WalletRechargePage() {
     }
     setManualTxn(null)
     setShareError("")
+    if (enableCashfree && hasSavedPhone) {
+      void handleCashfreeRecharge()
+      return
+    }
     setShowPaymentModal(true)
   }
 
@@ -290,13 +300,12 @@ export default function WalletRechargePage() {
       return
     }
 
-    if (cashfreePhone) {
-      const digits = phoneDigits(cashfreePhone)
-      if (digits.length < 10 || digits.length > 15) {
-        setError("Please enter a valid phone number.")
-        setLoading(false)
-        return
-      }
+    const effectivePhoneDigits = hasSavedPhone ? savedPhoneDigits : phoneDigits(cashfreePhone)
+    const digits = effectivePhoneDigits
+    if (digits.length < 10 || digits.length > 15) {
+      setError("Please enter a valid phone number.")
+      setLoading(false)
+      return
     }
 
     try {
@@ -306,7 +315,7 @@ export default function WalletRechargePage() {
         body: JSON.stringify({
           purpose: "recharge",
           amount: numericAmount,
-          customerPhone: cashfreePhone || undefined,
+          customerPhone: effectivePhoneDigits || undefined,
           customerEmail: user?.email || undefined,
           customerName: user?.name || undefined,
         }),
@@ -419,10 +428,12 @@ export default function WalletRechargePage() {
                   className="w-full h-14 text-lg"
                   size="lg"
                   onClick={handlePaymentClick}
-                  disabled={!numericAmount || numericAmount <= 0 || (config !== null && !anyPaymentEnabled)}
+                  disabled={loading || !numericAmount || numericAmount <= 0 || (config !== null && !anyPaymentEnabled)}
                 >
                   <CreditCard className="h-5 w-5 mr-3" />
-                  Continue to Pay ₹{amount || "0"}
+                  {loading && enableCashfree && hasSavedPhone
+                    ? "Opening Cashfree..."
+                    : `Continue to Pay ₹${amount || "0"}`}
                 </Button>
               </CardFooter>
             </Card>
@@ -451,17 +462,28 @@ export default function WalletRechargePage() {
             <div className="space-y-3">
               {enableCashfree && (
                 <div className="space-y-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="cashfreePhone">Phone (needed for Cashfree)</Label>
-                    <Input
-                      id="cashfreePhone"
-                      inputMode="tel"
-                      placeholder="Enter phone if not saved in your account"
-                      value={cashfreePhone}
-                      onChange={(e) => setCashfreePhone(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
+                  {!hasSavedPhone ? (
+                    <div className="space-y-1">
+                      <Label htmlFor="cashfreePhone">Phone (needed for Cashfree)</Label>
+                      <Input
+                        id="cashfreePhone"
+                        inputMode="tel"
+                        placeholder="Enter phone number"
+                        value={cashfreePhone}
+                        onChange={(e) => setCashfreePhone(e.target.value)}
+                        className="h-11"
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <span>
+                          Using saved mobile for Cashfree: <span className="font-mono">{maskedSavedPhone}</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   <Button
                     onClick={handleCashfreeRecharge}
                     disabled={loading || !numericAmount || numericAmount <= 0}

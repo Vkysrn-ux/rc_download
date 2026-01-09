@@ -29,7 +29,9 @@ function normalizeRegistration(value: string) {
 }
 
 function normalizePhone(value: string) {
-  return (value || "").replace(/[^\d+]/g, "")
+  const digits = (value || "").replace(/\D/g, "")
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2)
+  return digits
 }
 
 function isValidEmail(value: string) {
