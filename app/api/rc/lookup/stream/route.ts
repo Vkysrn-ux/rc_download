@@ -2,8 +2,7 @@ import { dbQuery } from "@/lib/server/db"
 import { getCurrentUser } from "@/lib/server/session"
 import { ExternalApiError, lookupRc, normalizeRegistration, storeRcResult, type RcLookupProgressEvent } from "@/lib/server/rc-lookup"
 import { WalletError, chargeWalletForDownload } from "@/lib/server/wallet"
-
-const USER_PRICE = 20
+import { REGISTERED_RC_DOWNLOAD_PRICE_INR } from "@/lib/pricing"
 
 const encoder = new TextEncoder()
 
@@ -40,7 +39,7 @@ export async function GET(req: Request) {
             [user.id],
           )
           const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
-          if (walletBalance < USER_PRICE) {
+          if (walletBalance < REGISTERED_RC_DOWNLOAD_PRICE_INR) {
             writeEvent(controller, "server_error", { ok: false, error: "Insufficient wallet balance. Please pay to view RC.", status: 402 })
             return
           }
@@ -74,7 +73,7 @@ export async function GET(req: Request) {
             const charged = await chargeWalletForDownload({
               userId: user.id,
               registrationNumber: result.registrationNumber,
-              price: USER_PRICE,
+              price: REGISTERED_RC_DOWNLOAD_PRICE_INR,
               description: `Vehicle RC Download - ${result.registrationNumber}`,
             })
             writeEvent(controller, "done", {

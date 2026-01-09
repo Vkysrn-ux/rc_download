@@ -51,17 +51,18 @@ export async function POST(req: Request) {
   const orderStatus = String(order.order_status || "").toUpperCase()
   if (orderStatus === "PAID") {
     await dbTransaction(async (conn) => {
-      const [rows] = await conn.query<
-        Array<{
-          id: string
-          user_id: string | null
-          type: "recharge" | "download"
-          status: "pending" | "completed" | "failed"
-          gateway_order_id: string | null
-        }>
-      >("SELECT id, user_id, type, status, gateway_order_id FROM transactions WHERE id = ? LIMIT 1 FOR UPDATE", [txn.id])
-
-      const locked = rows[0]
+      const [rows] = await conn.query("SELECT id, user_id, type, status, gateway_order_id FROM transactions WHERE id = ? LIMIT 1 FOR UPDATE", [
+        txn.id,
+      ])
+      const locked = (rows as any[])[0] as
+        | {
+            id: string
+            user_id: string | null
+            type: "recharge" | "download"
+            status: "pending" | "completed" | "failed"
+            gateway_order_id: string | null
+          }
+        | undefined
       if (!locked) return
       if (locked.status === "completed") return
 

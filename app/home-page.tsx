@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { FileText, Wallet, Shield, Zap, CheckCircle2, Clock, Lock } from "lucide-react"
+import VirtualRcTemplate from "@/components/virtual-rc"
+import { useRef } from "react"
+import { RCDocumentTemplate } from "@/components/rc-document-template"
 import Link from "next/link"
 
 const ACCEPT_COOKIE_NAME = "rc_cookie_accepted"
@@ -29,6 +32,76 @@ export default function HomePageClient() {
   const [guestRegistration, setGuestRegistration] = useState("")
   const [guestResult, setGuestResult] = useState<string | null>(null)
   const [guestPhone, setGuestPhone] = useState("+91")
+  const [showVahanPreview, setShowVahanPreview] = useState(false)
+  const originalRootStyleRef = useRef<string>("")
+  const originalBodyStyleRef = useRef<string>("")
+  const originalGetPropertyValueRef = useRef<((prop: string) => string) | null>(null)
+
+  useEffect(() => {
+    // Monkeypatch CSSStyleDeclaration.getPropertyValue to avoid html2canvas parsing 'lab()' colors.
+    if (typeof window !== "undefined" && CSSStyleDeclaration && !originalGetPropertyValueRef.current) {
+      try {
+        const proto = CSSStyleDeclaration.prototype as any
+        originalGetPropertyValueRef.current = proto.getPropertyValue
+        proto.getPropertyValue = function (prop: string) {
+          try {
+            const val = originalGetPropertyValueRef.current!.call(this, prop)
+            if (typeof val === "string" && val.includes("lab(")) {
+              return val.replace(/lab\([^)]*\)/g, "#111111")
+            }
+            return val
+          } catch (e) {
+            return originalGetPropertyValueRef.current!.call(this, prop)
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (!showVahanPreview) {
+      // restore
+      if (originalRootStyleRef.current) document.documentElement.setAttribute("style", originalRootStyleRef.current)
+      if (originalBodyStyleRef.current) document.body.setAttribute("style", originalBodyStyleRef.current)
+      // restore getPropertyValue
+      if (originalGetPropertyValueRef.current) {
+        try {
+          ;(CSSStyleDeclaration.prototype as any).getPropertyValue = originalGetPropertyValueRef.current
+          originalGetPropertyValueRef.current = null
+        } catch {}
+      }
+      return
+    }
+
+    // save originals
+    originalRootStyleRef.current = document.documentElement.getAttribute("style") || ""
+    originalBodyStyleRef.current = document.body.getAttribute("style") || ""
+
+    // Override common theme variables to simple hex values so any canvas/html2canvas parsing
+    // won't encounter modern color functions like `lab()`.
+    const root = document.documentElement
+    const body = document.body
+    root.style.setProperty("--background", "#ffffff")
+    root.style.setProperty("--foreground", "#111111")
+    root.style.setProperty("--card", "#ffffff")
+    root.style.setProperty("--card-foreground", "#111111")
+    root.style.setProperty("--popover", "#ffffff")
+    root.style.setProperty("--popover-foreground", "#111111")
+    root.style.setProperty("--primary", "#0b61d6")
+    root.style.setProperty("--primary-foreground", "#ffffff")
+    root.style.setProperty("--secondary", "#f3f4f6")
+    root.style.setProperty("--secondary-foreground", "#111111")
+    root.style.setProperty("--muted", "#f3f4f6")
+    root.style.setProperty("--muted-foreground", "#6b7280")
+    root.style.setProperty("--accent", "#f3f4f6")
+    root.style.setProperty("--accent-foreground", "#111111")
+    root.style.setProperty("--destructive", "#ef4444")
+    root.style.setProperty("--destructive-foreground", "#ffffff")
+    root.style.setProperty("--border", "#e5e7eb")
+    root.style.setProperty("--input", "#e5e7eb")
+    root.style.setProperty("--ring", "#93c5fd")
+    body.style.backgroundColor = "#ffffff"
+    body.style.color = "#000000"
+  }, [showVahanPreview])
 
   const handlePay = async () => {
     const registration = (guestRegistration || "").trim()
@@ -279,6 +352,17 @@ export default function HomePageClient() {
                 </Button>
               )}
             </div>
+
+            <div className="flex justify-center gap-4 pt-6">
+              <button
+                type="button"
+                onClick={() => setShowVahanPreview(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-50 rounded-full text-sm font-medium text-foreground"
+              >
+                {/* <span style={{ fontSize: 12 }}>👁️</span> */}
+                Vahan
+              </button>
+            </div>
           </section>
 
           <section className="grid md:grid-cols-3 gap-8 pt-8">
@@ -326,6 +410,83 @@ export default function HomePageClient() {
           </section>
         </div>
       </main>
+
+      {showVahanPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowVahanPreview(false)} />
+          <div className="relative max-w-lg w-full mx-4">
+            <div className="bg-white rounded-lg shadow-lg overflow-auto">
+              <div className="p-3 flex items-center justify-between border-b">
+                <div className="text-lg font-semibold">Vahan Preview</div>
+                <Button variant="ghost" onClick={() => setShowVahanPreview(false)}>Close</Button>
+              </div>
+              <div className="p-4">
+                <div className="flex flex-col md:flex-row gap-4 items-start">
+                  <div className="rounded-md border p-2 bg-white">
+                    <div className="flex gap-3">
+                      <div>
+                        <RCDocumentTemplate
+                          data={{
+                            registrationNumber: guestRegistration || "MH12AB1234",
+                            ownerName: "Vignesh S",
+                            vehicleClass: "M-CYCLE/SCOOTER",
+                            maker: "Bajaj",
+                            model: "Avenger 220",
+                            fuelType: "Petrol",
+                            registrationDate: "2016-06-03",
+                            chassisNumber: "MD2A2EZ6GCBS6017",
+                            engineNumber: "PDZCB19946",
+                            address: "—",
+                          }}
+                          side="front"
+                          id="home-rc-front"
+                        />
+                      </div>
+                      <div>
+                        <RCDocumentTemplate
+                          data={{
+                            registrationNumber: guestRegistration || "MH12AB1234",
+                            ownerName: "Vignesh S",
+                            vehicleClass: "M-CYCLE/SCOOTER",
+                            maker: "Bajaj",
+                            model: "Avenger 220",
+                            fuelType: "Petrol",
+                            registrationDate: "2016-06-03",
+                            chassisNumber: "MD2A2EZ6GCBS6017",
+                            engineNumber: "PDZCB19946",
+                            address: "—",
+                          }}
+                          side="back"
+                          id="home-rc-back"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border p-2 bg-white">
+                    <div className="text-sm font-medium mb-2">Vahan Virtual RC (Preview)</div>
+                    <VirtualRcTemplate
+                      data={{
+                        registrationNumber: guestRegistration || "TN38CE0078",
+                        ownerName: "Vignesh S",
+                        vehicleClass: "M-CYCLE/SCOOTER",
+                        maker: "Bajaj",
+                        model: "Avenger 220 Street Bs Iii",
+                        fuelType: "Petrol",
+                        registrationDate: "2016-06-03",
+                        chassisNumber: "MD2A2EZ6GCBS6017",
+                        engineNumber: "PDZCB19946",
+                        address: "—",
+                      }}
+                      id="home-rc-virtual"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="border-t bg-muted/30 mt-24">
         <div className="container mx-auto px-4 py-12">

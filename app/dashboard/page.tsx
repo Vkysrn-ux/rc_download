@@ -3,14 +3,16 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FileClock, FileImage, FileText, LogOut, MessageCircle, Plus, Search, Wallet, WalletCards } from "lucide-react"
+import { FileClock, FileImage, FileText, LogOut, MessageCircle, Plus, Search, Smartphone, Wallet, WalletCards } from "lucide-react"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 
 import { useAuth } from "@/lib/auth-context"
 import { formatInr } from "@/lib/format"
+import { REGISTERED_RC_DOWNLOAD_PRICE_INR } from "@/lib/pricing"
 import { canvasToPdfImage, getClientPdfSettings } from "@/lib/pdf-client"
 import { RCDocumentTemplate } from "@/components/rc-document-template"
+import VirtualRcTemplate from "@/components/virtual-rc"
 import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -82,6 +84,7 @@ export default function DashboardPage() {
   const [downloading, setDownloading] = useState(false)
   const [downloadType, setDownloadType] = useState<"png" | "pdf" | null>(null)
   const [downloadFileError, setDownloadFileError] = useState("")
+  const [resultView, setResultView] = useState<"documents" | "mparivahan">("documents")
   const eventSourceRef = useRef<EventSource | null>(null)
   const isAdmin = user?.role === "admin"
 
@@ -95,6 +98,7 @@ export default function DashboardPage() {
     setFetchingRc(false)
     setDownloading(false)
     setDownloadType(null)
+    setResultView("documents")
   }
 
   useEffect(() => {
@@ -269,6 +273,42 @@ export default function DashboardPage() {
     setDownloadType(null)
   }
 
+  const captureElementCanvas = async (elementId: string, scale = 2) => {
+    const element = document.getElementById(elementId)
+    if (!element) throw new Error("RC capture element not found")
+    setDownloadFileError("")
+    await document.fonts?.ready
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const images = Array.from(element.querySelectorAll("img"))
+    await Promise.race([
+      Promise.all(
+        images.map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if ((img as HTMLImageElement).complete) return resolve()
+              img.addEventListener("load", () => resolve(), { once: true })
+              img.addEventListener("error", () => resolve(), { once: true })
+            }),
+        ),
+      ),
+      new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+    ])
+
+    const root = document.documentElement
+    const body = document.body
+    const originalRootStyle = root.getAttribute("style") || ""
+    const originalBodyStyle = body.getAttribute("style") || ""
+
+    root.style.setProperty("--background", "#ffffff")
+    body.style.backgroundColor = "#ffffff"
+    try {
+      return await html2canvas(element, { scale, backgroundColor: "#ffffff", useCORS: true, scrollX: 0, scrollY: 0 })
+    } finally {
+      root.setAttribute("style", originalRootStyle)
+      body.setAttribute("style", originalBodyStyle)
+    }
+  }
+
   const startDownloadFlow = () => {
     const reg = normalizeRegistration(downloadRegistration)
     if (!reg || !acceptedTerms) return
@@ -409,13 +449,17 @@ export default function DashboardPage() {
                     <FileText className="h-5 w-5 text-blue-600 shrink-0" />
                     <span className="text-sm sm:text-base text-blue-900">
                       RC downloads at{" "}
-                      <span className="font-bold">{formatInr(20, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} each</span> for
-                      registered users
+                      <span className="font-bold">
+                        {formatInr(REGISTERED_RC_DOWNLOAD_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} each
+                      </span>{" "}
+                      for registered users
                     </span>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Downloads available:{" "}
-                    <span className="font-bold text-foreground text-base">{Math.floor(user.walletBalance / 20)}</span>
+                    <span className="font-bold text-foreground text-base">
+                      {Math.floor(user.walletBalance / REGISTERED_RC_DOWNLOAD_PRICE_INR)}
+                    </span>
                   </div>
                 </div>
 
@@ -460,15 +504,31 @@ export default function DashboardPage() {
                 {rcData ? (
                   <div className="space-y-3">
                     <div className="rounded-xl border bg-white p-3">
-                      <div className="grid gap-4 lg:grid-cols-2">
-                        <RcPreviewCard data={rcData} side="front" />
-                        <RcPreviewCard data={rcData} side="back" />
-                      </div>
+                      {resultView === "mparivahan" ? (
+                        <div className="flex justify-center">
+                          <div className="overflow-x-auto">
+                            <VirtualRcTemplate
+                              data={rcData}
+                              id="rc-virtual-preview-dashboard-full"
+                              showReturnButton
+                              returnHref="/"
+                              returnLabel="Return to Home"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex min-w-max justify-center gap-3 items-start">
+                            <RcPreviewCard data={rcData} side="front" />
+                            <RcPreviewCard data={rcData} side="back" />
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {downloadFileError ? <div className="text-sm text-destructive">{downloadFileError}</div> : null}
 
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-4">
                       <Button type="button" size="lg" onClick={handleDownloadPng} disabled={downloading}>
                         <FileImage className="h-5 w-5 mr-2" />
                         {downloading && downloadType === "png" ? "Generating..." : "Download PNG"}
@@ -477,26 +537,36 @@ export default function DashboardPage() {
                         <FileText className="h-5 w-5 mr-2" />
                         {downloading && downloadType === "pdf" ? "Generating..." : "Download PDF"}
                       </Button>
-                      <Button type="button" variant="outline" className="bg-transparent" size="lg" onClick={resetDownloadCard} disabled={downloading}>
+                      <Button
+                        type="button"
+                        variant={resultView === "mparivahan" ? "default" : "outline"}
+                        className={resultView === "mparivahan" ? "" : "bg-transparent"}
+                        size="lg"
+                        onClick={() => setResultView((prev) => (prev === "mparivahan" ? "documents" : "mparivahan"))}
+                        disabled={downloading}
+                      >
+                        <Smartphone className="h-5 w-5 mr-2" />
+                        {resultView === "mparivahan" ? "Show Documents" : "mParivahan"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="bg-transparent"
+                        size="lg"
+                        onClick={resetDownloadCard}
+                        disabled={downloading}
+                      >
                         New Search
                       </Button>
                     </div>
 
-                    <div
-                      aria-hidden="true"
-                      className="pointer-events-none"
-                      style={{
-                        position: "fixed",
-                        left: 0,
-                        top: 0,
-                        visibility: "hidden",
-                      }}
-                    >
+                    <div aria-hidden="true" className="pointer-events-none" style={{ position: "fixed", left: 0, top: 0, visibility: "hidden" }}>
                       <div id="rc-dashboard-capture" className="inline-flex gap-4 bg-white p-4">
                         <RCDocumentTemplate data={rcData} side="front" id="rc-front-dashboard-capture" />
                         <RCDocumentTemplate data={rcData} side="back" id="rc-back-dashboard-capture" />
                       </div>
                     </div>
+
                   </div>
                 ) : (
                   <>

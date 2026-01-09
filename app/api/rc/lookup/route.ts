@@ -4,10 +4,9 @@ import { getCurrentUser } from "@/lib/server/session"
 import { dbQuery } from "@/lib/server/db"
 import { lookupRc, storeRcResult, ExternalApiError, normalizeRegistration } from "@/lib/server/rc-lookup"
 import { WalletError, chargeWalletForDownload } from "@/lib/server/wallet"
+import { REGISTERED_RC_DOWNLOAD_PRICE_INR } from "@/lib/pricing"
 
 const LookupSchema = z.object({ registrationNumber: z.string().min(4).max(32) })
-
-const USER_PRICE = 20
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
@@ -28,7 +27,7 @@ export async function GET(req: Request) {
       [user.id],
     )
     const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
-    if (walletBalance < USER_PRICE) {
+    if (walletBalance < REGISTERED_RC_DOWNLOAD_PRICE_INR) {
       return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please recharge wallet." }, { status: 402 })
     }
 
@@ -40,7 +39,7 @@ export async function GET(req: Request) {
     const charged = await chargeWalletForDownload({
       userId: user.id,
       registrationNumber: result.registrationNumber,
-      price: USER_PRICE,
+      price: REGISTERED_RC_DOWNLOAD_PRICE_INR,
       description: `Vehicle RC Download - ${result.registrationNumber}`,
     })
 
@@ -84,7 +83,7 @@ export async function POST(req: Request) {
       [user.id],
     )
     const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
-    if (walletBalance < USER_PRICE) {
+    if (walletBalance < REGISTERED_RC_DOWNLOAD_PRICE_INR) {
       return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please recharge wallet." }, { status: 402 })
     }
 
@@ -96,7 +95,7 @@ export async function POST(req: Request) {
     const charged = await chargeWalletForDownload({
       userId: user.id,
       registrationNumber: result.registrationNumber,
-      price: USER_PRICE,
+      price: REGISTERED_RC_DOWNLOAD_PRICE_INR,
       description: `Vehicle RC Download - ${result.registrationNumber}`,
     })
 

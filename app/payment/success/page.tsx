@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Home, FileImage, FileText } from "lucide-react"
+import { Home, FileImage, FileText, Smartphone } from "lucide-react"
 import { RCDocumentTemplate } from "@/components/rc-document-template"
+import VirtualRcTemplate from "@/components/virtual-rc"
 import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
 import { RcDownloadStepper } from "@/components/rc-download-stepper"
 import html2canvas from "html2canvas"
@@ -27,6 +28,7 @@ function PaymentSuccessContent() {
   const [rcData, setRcData] = useState<any | null>(null)
   const [rcError, setRcError] = useState<string>("")
   const [downloadError, setDownloadError] = useState<string>("")
+  const [resultView, setResultView] = useState<"documents" | "mparivahan">("documents")
   const [apiSteps, setApiSteps] = useState<RcApiStepStatus[] | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
 
@@ -240,6 +242,43 @@ function PaymentSuccessContent() {
     setDownloadType(null)
   }
 
+  const captureElementCanvas = async (elementId: string, scale = 2) => {
+    const element = document.getElementById(elementId)
+    if (!element) throw new Error("Capture element not found")
+    setDownloadError("")
+    await document.fonts?.ready
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const images = Array.from(element.querySelectorAll("img"))
+    await Promise.race([
+      Promise.all(
+        images.map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete) return resolve()
+              img.addEventListener("load", () => resolve(), { once: true })
+              img.addEventListener("error", () => resolve(), { once: true })
+            }),
+        ),
+      ),
+      new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+    ])
+
+    // Temporarily force white background like existing capture
+    const root = document.documentElement
+    const body = document.body
+    const originalRootStyle = root.getAttribute("style") || ""
+    const originalBodyStyle = body.getAttribute("style") || ""
+
+    root.style.setProperty("--background", "#ffffff")
+    body.style.backgroundColor = "#ffffff"
+    try {
+      return await html2canvas(element, { scale, backgroundColor: "#ffffff", useCORS: true, scrollX: 0, scrollY: 0 })
+    } finally {
+      root.setAttribute("style", originalRootStyle)
+      body.setAttribute("style", originalBodyStyle)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4">
       <div className="max-w-[1400px] mx-auto space-y-6 py-8">
@@ -257,15 +296,31 @@ function PaymentSuccessContent() {
             {(rcLoading || apiSteps) && <RcApiProgressChecklist active={rcLoading} steps={apiSteps} className="mt-3" />}
             {rcData && (
               <div className="mt-4 rounded-xl border bg-white p-2 md:p-4 shadow-sm overflow-x-auto">
-                <div className="flex min-w-max justify-center gap-3">
-                  <RCDocumentTemplate data={rcData} side="front" id="rc-front-preview" />
-                  <RCDocumentTemplate data={rcData} side="back" id="rc-back-preview" />
-                </div>
+                {resultView === "mparivahan" ? (
+                  <div className="flex justify-center">
+                    <div className="overflow-x-auto">
+                      <VirtualRcTemplate
+                        data={rcData}
+                        id="rc-virtual-preview-full"
+                        showReturnButton
+                        returnHref="/"
+                        returnLabel="Return to Home"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex min-w-max justify-center gap-3 items-start">
+                      <RCDocumentTemplate data={rcData} side="front" id="rc-front-preview" />
+                      <RCDocumentTemplate data={rcData} side="back" id="rc-back-preview" />
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col gap-3">
-            <div className="grid md:grid-cols-2 gap-3 w-full">
+            <div className="grid md:grid-cols-4 gap-3 w-full">
               <Button
                 size="lg"
                 onClick={handleDownloadImage}
@@ -277,7 +332,7 @@ function PaymentSuccessContent() {
                 ) : (
                   <>
                     <FileImage className="h-4 w-4 mr-2" />
-                    Download as Image
+                    Download PNG
                   </>
                 )}
               </Button>
@@ -296,16 +351,26 @@ function PaymentSuccessContent() {
                   </>
                 )}
               </Button>
+              <Button
+                size="lg"
+                variant={resultView === "mparivahan" ? "default" : "outline"}
+                className={resultView === "mparivahan" ? "" : "bg-transparent"}
+                onClick={() => setResultView((prev) => (prev === "mparivahan" ? "documents" : "mparivahan"))}
+                disabled={!rcData}
+              >
+                <Smartphone className="h-4 w-4 mr-2" />
+                {resultView === "mparivahan" ? "Show Documents" : "mParivahan"}
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="bg-transparent"
+                onClick={() => router.push(isAuthenticated ? "/dashboard" : "/")}
+              >
+                <Home className="h-4 w-4 mr-2" />
+                {isAuthenticated ? "Back to Dashboard" : "Back to Home"}
+              </Button>
             </div>
-
-            <Button
-              variant="outline"
-              className="w-full bg-transparent"
-              onClick={() => router.push(isAuthenticated ? "/dashboard" : "/")}
-            >
-              <Home className="h-4 w-4 mr-2" />
-              {isAuthenticated ? "Back to Dashboard" : "Back to Home"}
-            </Button>
           </CardFooter>
         </Card>
 
@@ -321,6 +386,7 @@ function PaymentSuccessContent() {
             </div>
           </div>
         )}
+
       </div>
     </div>
   )

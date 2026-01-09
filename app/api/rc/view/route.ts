@@ -22,13 +22,21 @@ export async function GET(req: Request) {
 
   if (txn.status !== "completed") {
     txn = await ensureDownloadTransactionCompleted(txn)
+    if (!txn.registration_number) {
+      return NextResponse.json({ ok: false, error: "Invalid transaction" }, { status: 404 })
+    }
     if (txn.status !== "completed") {
       return NextResponse.json({ ok: false, error: "Payment pending. RC will be available after confirmation." }, { status: 402 })
     }
   }
 
+  const registrationNumber = txn.registration_number
+  if (!registrationNumber) {
+    return NextResponse.json({ ok: false, error: "Invalid transaction" }, { status: 404 })
+  }
+
   try {
-    const result = await lookupRc(txn.registration_number, { userId: txn.user_id ?? null, bypassCache })
+    const result = await lookupRc(registrationNumber, { userId: txn.user_id ?? null, bypassCache })
     if (!result) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
     await storeRcResult(result.registrationNumber, txn.user_id ?? null, result.data, result.provider, result.providerRef).catch(() => {})
