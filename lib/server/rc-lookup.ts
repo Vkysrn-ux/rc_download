@@ -117,6 +117,16 @@ function readIndexedEnv(baseName: string, index: number) {
   return process.env[`${baseName}_${index}`]
 }
 
+function normalizeBaseUrlForCompare(value: string | null | undefined) {
+  return (value || "").trim().replace(/\/+$/, "")
+}
+
+function shouldSendEnrichFlag(provider: RcProvider) {
+  const configured = normalizeBaseUrlForCompare(readIndexedEnv("RC_API_BASE_URL", 2))
+  if (!configured) return false
+  return normalizeBaseUrlForCompare(provider.baseUrl) === configured
+}
+
 function getRcProvidersFromEnv(maxProviders = 3): RcProvider[] {
   const providers: RcProvider[] = []
 
@@ -251,10 +261,13 @@ async function fetchFromProvider(provider: RcProvider, registrationNumber: strin
   let body: any = null
 
   try {
+    const payload: Record<string, unknown> = { [provider.payloadField]: registrationNumber }
+    if (shouldSendEnrichFlag(provider)) payload.enrich = true
+
     res = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ [provider.payloadField]: registrationNumber }),
+      body: JSON.stringify(payload),
       signal: controller.signal,
       cache: "no-store",
     })
@@ -303,7 +316,7 @@ export async function lookupRc(
   // Only 2 servers are used:
   // - Provider #1: RC_API_BASE_URL (Surepass or compatible)
   // - Provider #2: RC_API_APNIRC_B2B_URL (APNIRC B2B fallback)
-  const providers = getRcProvidersFromEnv(1)
+  const providers = getRcProvidersFromEnv(3)
   const apnircB2bFallback = getApnircB2bFallbackProviderFromEnv()
   const hasExternal = providers.length > 0 || Boolean(apnircB2bFallback)
 
