@@ -25,3 +25,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Temp / generated files
+.tmp_*
+*.pem
+*.key
+*.yaml
+.env
+.env.*
