@@ -29,42 +29,9 @@ const RC_PREVIEW_HEIGHT_PX = 404
 const PDF_COMBINED_WIDTH_MM = 320
 
 function RcPreviewCard({ data, side }: { data: any; side: "front" | "back" }) {
-  const hostRef = useRef<HTMLDivElement | null>(null)
-  const [hostWidth, setHostWidth] = useState<number>(0)
-
-  useEffect(() => {
-    const host = hostRef.current
-    if (!host) return
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      const next = entry ? Math.max(0, Math.floor(entry.contentRect.width)) : 0
-      setHostWidth(next)
-    })
-    observer.observe(host)
-
-    return () => observer.disconnect()
-  }, [])
-
-  const available = hostWidth || 320
-  const scale = Math.min(1, available / RC_PREVIEW_WIDTH_PX)
-  const scaledW = Math.floor(RC_PREVIEW_WIDTH_PX * scale)
-  const scaledH = Math.floor(RC_PREVIEW_HEIGHT_PX * scale)
-
   return (
-    <div ref={hostRef} className="w-full">
-      <div className="mx-auto" style={{ width: scaledW, height: scaledH }}>
-        <div
-          style={{
-            width: RC_PREVIEW_WIDTH_PX,
-            height: RC_PREVIEW_HEIGHT_PX,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-          }}
-        >
-          <RCDocumentTemplate data={data} side={side} />
-        </div>
-      </div>
+    <div className="shrink-0">
+      <RCDocumentTemplate data={data} side={side} />
     </div>
   )
 }
@@ -518,9 +485,11 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <>
-                          <div className="flex min-w-max justify-center gap-3 items-start">
-                            <RcPreviewCard data={rcData} side="front" />
-                            <RcPreviewCard data={rcData} side="back" />
+                          <div className="w-full overflow-x-auto no-scrollbar">
+                            <div className="flex min-w-max justify-center gap-3 items-start">
+                              <RcPreviewCard data={rcData} side="front" />
+                              <RcPreviewCard data={rcData} side="back" />
+                            </div>
                           </div>
                         </>
                       )}
@@ -561,7 +530,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div aria-hidden="true" className="pointer-events-none" style={{ position: "fixed", left: 0, top: 0, visibility: "hidden" }}>
-                      <div id="rc-dashboard-capture" className="inline-flex gap-4 bg-white p-4">
+                      <div id="rc-dashboard-capture" className="inline-flex bg-white">
                         <RCDocumentTemplate data={rcData} side="front" id="rc-front-dashboard-capture" />
                         <RCDocumentTemplate data={rcData} side="back" id="rc-back-dashboard-capture" />
                       </div>

@@ -11,6 +11,7 @@ function readIndexedEnv(baseName: string, index: number) {
 function classifyRcVariant(baseUrl: string | null) {
   const value = (baseUrl || "").toLowerCase()
   if (!value) return "unknown"
+  if (value.includes("cashfree") || value.includes("vehicle-rc") || value.includes("vrs")) return "cashfree-vrs"
   if (value.includes("rc-full")) return "rc-full"
   if (value.includes("rc-v2")) return "rc-v2"
   if (value.includes("rc-lite")) return "rc-lite"
@@ -77,8 +78,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const apiCallOrder = ["rc-v2", "rc-full", "rc-lite", "apnirc"]
-  const apiCallLabel: Record<string, string> = { "rc-v2": "RC-v2", "rc-full": "rc-full", "rc-lite": "rc-lite", apnirc: "apnirc" }
+  const apiCallOrder = ["cashfree-vrs", "rc-v2", "rc-full", "rc-lite", "apnirc"]
+  const apiCallLabel: Record<string, string> = {
+    "cashfree-vrs": "Cashfree VRS",
+    "rc-v2": "RC-v2",
+    "rc-full": "rc-full",
+    "rc-lite": "rc-lite",
+    apnirc: "apnirc",
+  }
   const apiCalls = apiCallOrder.map((variant) => {
     const row = apiCallsByVariant.find((r) => r.variant === variant)
     return { name: apiCallLabel[variant], hits: row?.hits ?? 0, successes: row?.successes ?? 0, failures: row?.failures ?? 0 }

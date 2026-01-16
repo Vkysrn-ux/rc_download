@@ -380,7 +380,7 @@ function PaymentSuccessContent() {
             className="fixed pointer-events-none"
             style={{ left: "0px", top: "0px", zIndex: -1, width: "1px", height: "1px", overflow: "visible" }}
           >
-            <div id="rc-combined-capture" className="inline-flex gap-4 bg-white">
+            <div id="rc-combined-capture" className="inline-flex bg-white">
               <RCDocumentTemplate data={rcData} side="front" id="rc-front-capture" />
               <RCDocumentTemplate data={rcData} side="back" id="rc-back-capture" />
             </div>

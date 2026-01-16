@@ -14,7 +14,7 @@ export default function TermsPage() {
             </div>
             <div>
               <div className="text-lg font-bold text-foreground">VehicleRCDownload.com</div>
-              <div className="text-xs text-muted-foreground">Docx Solutions</div>
+              <div className="text-xs text-muted-foreground">Talonmind Technologies</div>
             </div>
           </div>
           <Link href="/">
@@ -45,9 +45,9 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">2. Service Description</h2>
               <p className="text-muted-foreground leading-relaxed">
-                VehicleRCDownload.com, operated by Docx Solutions, provides a platform for downloading Vehicle
-                Registration Certificate (RC) documents and other official documents. The Service may use third-party
-                providers and data sources to fulfil your request.
+                VehicleRCDownload.com, a product of Talonmind Technologies (a registered company), provides a platform
+                for downloading Vehicle Registration Certificate (RC) documents and other official documents. The
+                Service may use third-party providers and data sources to fulfil your request.
               </p>
             </section>
 
@@ -142,7 +142,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">10. Limitation of Liability</h2>
               <p className="text-muted-foreground leading-relaxed">
-                VehicleRCDownload.com and Docx Solutions shall not be liable for any indirect, incidental, special,
+                VehicleRCDownload.com and Talonmind Technologies shall not be liable for any indirect, incidental, special,
                 consequential, or punitive damages resulting from your use of the Service. Our total liability shall
                 not exceed the amount paid by you for the specific transaction in question.
               </p>

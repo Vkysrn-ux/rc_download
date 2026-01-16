@@ -63,6 +63,29 @@
   - Optional timeout: `RC_API_TIMEOUT_MS` (default `15000`)
 - Surepass payload used by this app: `POST { "id_number": "MH12AB1234" }`
   - APNIRC B2B fallback payload: `POST { "vrn": "MH12AB1234" }`
+- Optional provider overrides:
+  - `RC_API_METHOD` / `RC_API_METHOD_2` / `RC_API_METHOD_3` (`GET` or `POST`, default `POST`)
+  - `RC_API_HEADERS` / `RC_API_HEADERS_2` / `RC_API_HEADERS_3` (JSON object of extra headers)
+  - `RC_API_EXTRA_PARAMS` / `RC_API_EXTRA_PARAMS_2` / `RC_API_EXTRA_PARAMS_3` (JSON object merged into query params for `GET` or body for `POST`)
+  - `RC_API_SIGNATURE_PUBLIC_KEY_PATH` / `RC_API_SIGNATURE_PUBLIC_KEY_PATH_2` / `RC_API_SIGNATURE_PUBLIC_KEY_PATH_3` (PEM path for RSA signature)
+  - `RC_API_SIGNATURE_HEADER_NAME` / `RC_API_SIGNATURE_HEADER_NAME_2` / `RC_API_SIGNATURE_HEADER_NAME_3` (header name to send signature)
+  - `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME` / `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME_2` / `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME_3` (optional timestamp header name)
+- Example: Cashfree VRS (production, single provider):
+  - `RC_API_MODE=external`
+  - `RC_API_BASE_URL=https://api.cashfree.com/verification/vehicle-rc`
+  - `RC_API_METHOD=POST`
+  - `RC_API_AUTH_HEADER_NAME=x-client-id`
+  - `RC_API_AUTH_SCHEME=` (empty)
+  - `RC_API_KEY=your_client_id`
+  - `RC_API_HEADERS={"x-client-secret":"your_client_secret"}`
+  - `RC_API_PAYLOAD_FIELD=vehicle_number`
+  - `RC_API_EXTRA_PARAMS={"verification_id":"AUTO"}`
+  - If Cashfree requires RSA signature:
+    - `RC_API_SIGNATURE_PUBLIC_KEY_PATH=path/to/cashfree_public_key.pem`
+    - or inline: `RC_API_SIGNATURE_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----`
+    - `RC_API_SIGNATURE_HEADER_NAME=<as-per-docs>`
+    - `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME=<as-per-docs>`
+  - Use `RC_API_EXTRA_PARAMS={"verification_id":"<your_verification_id>"}` if you want to control the ID.
 
 ## Admin
 

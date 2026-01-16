@@ -242,19 +242,12 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
   }, [qrPayload, qrVersion])
 
   const templateCandidates = useMemo(() => {
-    return [...SIDE_TEMPLATE_CANDIDATES[side], ...COMBINED_TEMPLATE_CANDIDATES]
+    // Prefer the combined template when present: our crop fractions are tuned for it, and
+    // it avoids per-side scans that can include extra padding/borders (causing misalignment).
+    return [...COMBINED_TEMPLATE_CANDIDATES, ...SIDE_TEMPLATE_CANDIDATES[side]]
   }, [side])
 
   const templateBackgroundStyle: CSSProperties = useMemo(() => {
-    if (loadedSideTemplateUrl) {
-      return {
-        backgroundImage: `url(${loadedSideTemplateUrl})`,
-        backgroundSize: "100% 100%",
-        backgroundPosition: "0 0",
-        backgroundRepeat: "no-repeat",
-      }
-    }
-
     if (loadedCombinedTemplate) {
       const crop = COMBINED_TEMPLATE_CROP[side]
       const cropPx = {
@@ -272,6 +265,16 @@ export function RCDocumentTemplate({ data, side, id }: RCDocumentTemplateProps) 
         backgroundImage: `url(${loadedCombinedTemplate.url})`,
         backgroundSize: `${Math.round(bgW)}px ${Math.round(bgH)}px`,
         backgroundPosition: `${Math.round(posX)}px ${Math.round(posY)}px`,
+        backgroundRepeat: "no-repeat",
+      }
+    }
+
+    if (loadedSideTemplateUrl) {
+      return {
+        backgroundImage: `url(${loadedSideTemplateUrl})`,
+        // Side templates can include extra padding/borders; `cover` minimizes visible gaps.
+        backgroundSize: "cover",
+        backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
       }
     }

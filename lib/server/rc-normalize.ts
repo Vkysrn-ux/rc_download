@@ -587,6 +587,7 @@ export function normalizeSurepassRcResponse(registrationNumber: string, raw: any
         "vehicleClassDesc",
         "vehicle_class_description",
         "vehicleClassDescription",
+        "class",
       ]) ||
       firstStringFromSources(sources, [
         "vehicle_category_description",
@@ -863,6 +864,7 @@ export function normalizeSurepassRcResponse(registrationNumber: string, raw: any
         "vehicleClassDesc",
         "vehicle_class_description",
         "vehicleClassDescription",
+        "class",
       ]) || ""
   }
   if (!normalized.maker.trim()) {
