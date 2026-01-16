@@ -206,7 +206,7 @@ export default function HomePageClient() {
                       <Zap className="h-6 w-6 text-blue-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-2xl">Guest Access</CardTitle>
+                      <CardTitle className="text-2xl">Instant RC Download</CardTitle>
                       <CardDescription className="text-base mt-1">Quick one-time download</CardDescription>
                     </div>
                   </div>
