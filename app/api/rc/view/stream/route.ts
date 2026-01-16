@@ -9,8 +9,7 @@ function writeEvent(controller: ReadableStreamDefaultController, event: string, 
 
 function providerIndexToStepIndex(providerIndex: number) {
   if (providerIndex === 1) return 0
-  if (providerIndex === 4) return 1
-  return 0
+  return 1
 }
 
 export async function GET(req: Request) {
@@ -77,7 +76,6 @@ export async function GET(req: Request) {
           registrationNumber: result.registrationNumber,
           data: result.data,
           provider: result.provider,
-          providerRef: result.providerRef,
         })
       } catch (error: any) {
         if (error instanceof ExternalApiError) {

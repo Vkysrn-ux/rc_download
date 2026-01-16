@@ -12,6 +12,7 @@ function classifyRcVariant(baseUrl: string | null) {
   const value = (baseUrl || "").toLowerCase()
   if (!value) return "unknown"
   if (value.includes("cashfree") || value.includes("vehicle-rc") || value.includes("vrs")) return "cashfree-vrs"
+  if (value.includes("apnirc")) return "apnirc"
   if (value.includes("rc-full")) return "rc-full"
   if (value.includes("rc-v2")) return "rc-v2"
   if (value.includes("rc-lite")) return "rc-lite"
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const apiCallOrder = ["cashfree-vrs", "rc-v2", "rc-full", "rc-lite", "apnirc"]
+  const apiCallOrder = ["cashfree-vrs", "rc-full", "apnirc", "rc-v2", "rc-lite"]
   const apiCallLabel: Record<string, string> = {
     "cashfree-vrs": "Cashfree VRS",
     "rc-v2": "RC-v2",
@@ -165,7 +166,7 @@ export async function GET(req: NextRequest) {
   const byProvider = (() => {
     if (!wantByProvider) return []
     const configuredProviderRefs = new Set<string>()
-    for (let index = 1; index <= 3; index++) {
+    for (let index = 1; index <= 4; index++) {
       const baseUrl = readIndexedEnv("RC_API_BASE_URL", index)
       if (baseUrl) configuredProviderRefs.add(String(index))
     }

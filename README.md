@@ -58,18 +58,18 @@
 - To use your provider, set:
   - `RC_API_MODE=external`
   - `RC_API_BASE_URL` + `RC_API_KEY` (sent as `Authorization: Bearer ...`)
-  - Optional failover providers (tried automatically if one fails): `RC_API_BASE_URL_2`/`RC_API_KEY_2`, `RC_API_BASE_URL_3`/`RC_API_KEY_3`
+  - Optional failover providers (tried automatically if one fails): `RC_API_BASE_URL_2`/`RC_API_KEY_2`, `RC_API_BASE_URL_3`/`RC_API_KEY_3`, `RC_API_BASE_URL_4`/`RC_API_KEY_4`
   - Optional final fallback (tried only if providers 1–3 fail): `RC_API_APNIRC_B2B_AUTHORIZATION` (sent as `Authorization: <value>`) and optional `RC_API_APNIRC_B2B_URL` (defaults to `https://api.apnirc.xyz/api/b2b/get-rc`)
   - Optional timeout: `RC_API_TIMEOUT_MS` (default `15000`)
 - Surepass payload used by this app: `POST { "id_number": "MH12AB1234" }`
   - APNIRC B2B fallback payload: `POST { "vrn": "MH12AB1234" }`
 - Optional provider overrides:
-  - `RC_API_METHOD` / `RC_API_METHOD_2` / `RC_API_METHOD_3` (`GET` or `POST`, default `POST`)
-  - `RC_API_HEADERS` / `RC_API_HEADERS_2` / `RC_API_HEADERS_3` (JSON object of extra headers)
-  - `RC_API_EXTRA_PARAMS` / `RC_API_EXTRA_PARAMS_2` / `RC_API_EXTRA_PARAMS_3` (JSON object merged into query params for `GET` or body for `POST`)
-  - `RC_API_SIGNATURE_PUBLIC_KEY_PATH` / `RC_API_SIGNATURE_PUBLIC_KEY_PATH_2` / `RC_API_SIGNATURE_PUBLIC_KEY_PATH_3` (PEM path for RSA signature)
-  - `RC_API_SIGNATURE_HEADER_NAME` / `RC_API_SIGNATURE_HEADER_NAME_2` / `RC_API_SIGNATURE_HEADER_NAME_3` (header name to send signature)
-  - `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME` / `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME_2` / `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME_3` (optional timestamp header name)
+  - `RC_API_METHOD` / `RC_API_METHOD_2` / `RC_API_METHOD_3` / `RC_API_METHOD_4` (`GET` or `POST`, default `POST`)
+  - `RC_API_HEADERS` / `RC_API_HEADERS_2` / `RC_API_HEADERS_3` / `RC_API_HEADERS_4` (JSON object of extra headers)
+  - `RC_API_EXTRA_PARAMS` / `RC_API_EXTRA_PARAMS_2` / `RC_API_EXTRA_PARAMS_3` / `RC_API_EXTRA_PARAMS_4` (JSON object merged into query params for `GET` or body for `POST`)
+  - `RC_API_SIGNATURE_PUBLIC_KEY_PATH` / `RC_API_SIGNATURE_PUBLIC_KEY_PATH_2` / `RC_API_SIGNATURE_PUBLIC_KEY_PATH_3` / `RC_API_SIGNATURE_PUBLIC_KEY_PATH_4` (PEM path for RSA signature)
+  - `RC_API_SIGNATURE_HEADER_NAME` / `RC_API_SIGNATURE_HEADER_NAME_2` / `RC_API_SIGNATURE_HEADER_NAME_3` / `RC_API_SIGNATURE_HEADER_NAME_4` (header name to send signature)
+  - `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME` / `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME_2` / `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME_3` / `RC_API_SIGNATURE_TIMESTAMP_HEADER_NAME_4` (optional timestamp header name)
 - Example: Cashfree VRS (production, single provider):
   - `RC_API_MODE=external`
   - `RC_API_BASE_URL=https://api.cashfree.com/verification/vehicle-rc`

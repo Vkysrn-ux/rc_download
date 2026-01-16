@@ -12,6 +12,7 @@ import { formatInr } from "@/lib/format"
 import { REGISTERED_RC_DOWNLOAD_PRICE_INR } from "@/lib/pricing"
 import { canvasToPdfImage, getClientPdfSettings } from "@/lib/pdf-client"
 import { RCDocumentTemplate } from "@/components/rc-document-template"
+import { RCDocumentPairPreview } from "@/components/rc-document-pair"
 import VirtualRcTemplate from "@/components/virtual-rc"
 import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
 import { Button } from "@/components/ui/button"
@@ -24,17 +25,7 @@ function normalizeRegistration(value: string) {
   return value.toUpperCase().replace(/\s/g, "")
 }
 
-const RC_PREVIEW_WIDTH_PX = 640
-const RC_PREVIEW_HEIGHT_PX = 404
 const PDF_COMBINED_WIDTH_MM = 320
-
-function RcPreviewCard({ data, side }: { data: any; side: "front" | "back" }) {
-  return (
-    <div className="shrink-0">
-      <RCDocumentTemplate data={data} side={side} />
-    </div>
-  )
-}
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -485,12 +476,9 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <>
-                          <div className="w-full overflow-x-auto no-scrollbar">
-                            <div className="flex min-w-max justify-center gap-3 items-start">
-                              <RcPreviewCard data={rcData} side="front" />
-                              <RcPreviewCard data={rcData} side="back" />
-                            </div>
-                          </div>
+                        <div className="w-full overflow-hidden">
+                          <RCDocumentPairPreview data={rcData} />
+                        </div>
                         </>
                       )}
                     </div>

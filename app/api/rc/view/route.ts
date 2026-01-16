@@ -45,7 +45,6 @@ export async function GET(req: Request) {
       registrationNumber: result.registrationNumber,
       data: result.data,
       provider: result.provider,
-      providerRef: result.providerRef,
     })
   } catch (error: any) {
     if (error instanceof ExternalApiError) {

@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation"
 import { FileText, Wallet, Shield, Zap, CheckCircle2, Clock, Lock } from "lucide-react"
 import VirtualRcTemplate from "@/components/virtual-rc"
 import { useRef } from "react"
-import { RCDocumentTemplate } from "@/components/rc-document-template"
+import { RCDocumentPairPreview } from "@/components/rc-document-pair"
 import Link from "next/link"
 
 const ACCEPT_COOKIE_NAME = "rc_cookie_accepted"
@@ -416,44 +416,22 @@ export default function HomePageClient() {
               <div className="p-4">
                 <div className="flex flex-col md:flex-row gap-4 items-start">
                   <div className="rounded-md border p-2 bg-white">
-                    <div className="flex gap-3">
-                      <div>
-                        <RCDocumentTemplate
-                          data={{
-                            registrationNumber: guestRegistration || "MH12AB1234",
-                            ownerName: "Vignesh S",
-                            vehicleClass: "M-CYCLE/SCOOTER",
-                            maker: "Bajaj",
-                            model: "Avenger 220",
-                            fuelType: "Petrol",
-                            registrationDate: "2016-06-03",
-                            chassisNumber: "MD2A2EZ6GCBS6017",
-                            engineNumber: "PDZCB19946",
-                            address: "—",
-                          }}
-                          side="front"
-                          id="home-rc-front"
-                        />
-                      </div>
-                      <div>
-                        <RCDocumentTemplate
-                          data={{
-                            registrationNumber: guestRegistration || "MH12AB1234",
-                            ownerName: "Vignesh S",
-                            vehicleClass: "M-CYCLE/SCOOTER",
-                            maker: "Bajaj",
-                            model: "Avenger 220",
-                            fuelType: "Petrol",
-                            registrationDate: "2016-06-03",
-                            chassisNumber: "MD2A2EZ6GCBS6017",
-                            engineNumber: "PDZCB19946",
-                            address: "—",
-                          }}
-                          side="back"
-                          id="home-rc-back"
-                        />
-                      </div>
-                    </div>
+                    <RCDocumentPairPreview
+                      data={{
+                        registrationNumber: guestRegistration || "MH12AB1234",
+                        ownerName: "Vignesh S",
+                        vehicleClass: "M-CYCLE/SCOOTER",
+                        maker: "Bajaj",
+                        model: "Avenger 220",
+                        fuelType: "Petrol",
+                        registrationDate: "2016-06-03",
+                        chassisNumber: "MD2A2EZ6GCBS6017",
+                        engineNumber: "PDZCB19946",
+                        address: "",
+                      }}
+                      frontId="home-rc-front"
+                      backId="home-rc-back"
+                     />
                   </div>
 
                   <div className="rounded-md border p-2 bg-white">
@@ -581,3 +559,5 @@ export default function HomePageClient() {
     </div>
   )
 }
+
+

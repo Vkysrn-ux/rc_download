@@ -107,8 +107,10 @@ function classifyRcVariantFromUrl(baseUrl: string | null) {
   return "unknown"
 }
 
+const APNIRC_FALLBACK_INDEX = 5
+
 function providerRefForCall(provider: RcProvider) {
-  if (provider.index === 4) return "apnirc-b2b"
+  if (provider.index === APNIRC_FALLBACK_INDEX) return "apnirc-b2b"
   return String(provider.index)
 }
 
@@ -265,7 +267,7 @@ function shouldSendEnrichFlag(provider: RcProvider) {
   return normalizeBaseUrlForCompare(provider.baseUrl) === configured
 }
 
-function getRcProvidersFromEnv(maxProviders = 3): RcProvider[] {
+function getRcProvidersFromEnv(maxProviders = 4): RcProvider[] {
   const providers: RcProvider[] = []
 
   for (let index = 1; index <= maxProviders; index++) {
@@ -330,7 +332,7 @@ function getApnircB2bFallbackProviderFromEnv(): RcProvider | null {
   const responseType = responseTypeRaw === "raw" ? "raw" : "surepass"
 
   return {
-    index: 4,
+    index: APNIRC_FALLBACK_INDEX,
     baseUrl,
     method: "POST",
     apiKey,
@@ -544,10 +546,9 @@ export async function lookupRc(
     : null
 
   const mode = (process.env.RC_API_MODE || "").toLowerCase()
-  // Only 2 servers are used:
-  // - Provider #1: RC_API_BASE_URL (Surepass or compatible)
-  // - Provider #2: RC_API_APNIRC_B2B_URL (APNIRC B2B fallback)
-  const providers = getRcProvidersFromEnv(3)
+  // Providers 1..4 are read from RC_API_BASE_URL[_2.._4] in order.
+  // APNIRC B2B is an optional final fallback when configured.
+  const providers = getRcProvidersFromEnv(4)
   const apnircB2bFallback = getApnircB2bFallbackProviderFromEnv()
   const hasExternal = providers.length > 0 || Boolean(apnircB2bFallback)
 

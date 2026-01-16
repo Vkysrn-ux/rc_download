@@ -51,7 +51,6 @@ export async function GET(req: Request) {
       walletBalance: charged.walletBalance,
       data: result.data,
       provider: result.provider,
-      providerRef: result.providerRef,
     })
   } catch (error: any) {
     if (error instanceof WalletError) {
@@ -107,7 +106,6 @@ export async function POST(req: Request) {
       walletBalance: charged.walletBalance,
       data: result.data,
       provider: result.provider,
-      providerRef: result.providerRef,
     })
   } catch (error: any) {
     if (error instanceof WalletError) {

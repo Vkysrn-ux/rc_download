@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Home, FileImage, FileText, Smartphone } from "lucide-react"
 import { RCDocumentTemplate } from "@/components/rc-document-template"
+import { RCDocumentPairPreview } from "@/components/rc-document-pair"
 import VirtualRcTemplate from "@/components/virtual-rc"
 import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
 import { RcDownloadStepper } from "@/components/rc-download-stepper"
@@ -295,7 +296,7 @@ function PaymentSuccessContent() {
             {downloadError && <div className="text-sm text-destructive mt-2">{downloadError}</div>}
             {(rcLoading || apiSteps) && <RcApiProgressChecklist active={rcLoading} steps={apiSteps} className="mt-3" />}
             {rcData && (
-              <div className="mt-4 rounded-xl border bg-white p-2 md:p-4 shadow-sm overflow-x-auto">
+              <div className="mt-4 rounded-xl border bg-white p-2 md:p-4 shadow-sm overflow-hidden">
                 {resultView === "mparivahan" ? (
                   <div className="flex justify-center">
                     <div className="overflow-x-auto">
@@ -310,10 +311,7 @@ function PaymentSuccessContent() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex min-w-max justify-center gap-3 items-start">
-                      <RCDocumentTemplate data={rcData} side="front" id="rc-front-preview" />
-                      <RCDocumentTemplate data={rcData} side="back" id="rc-back-preview" />
-                    </div>
+                    <RCDocumentPairPreview data={rcData} frontId="rc-front-preview" backId="rc-back-preview" />
                   </>
                 )}
               </div>
