@@ -103,7 +103,17 @@ export async function POST(req: Request) {
     )
   }
 
-  const appBaseUrl = process.env.APP_BASE_URL || new URL(req.url).origin
+  const requestOrigin = new URL(req.url).origin
+  const appBaseUrlRaw = process.env.APP_BASE_URL || requestOrigin
+  let appBaseUrl = appBaseUrlRaw
+  try {
+    const parsedEnvUrl = new URL(appBaseUrlRaw)
+    if (["localhost", "127.0.0.1"].includes(parsedEnvUrl.hostname)) {
+      appBaseUrl = requestOrigin
+    }
+  } catch {
+    appBaseUrl = requestOrigin
+  }
   const user = await getCurrentUser().catch(() => null)
   if (parsed.data.purpose === "download" && user) {
     return NextResponse.json({ ok: false, error: "Registered users must pay via wallet." }, { status: 403 })
@@ -160,6 +170,16 @@ export async function POST(req: Request) {
     // include phone in description for guest downloads so admins can see it in recent activity
     const phoneSuffix = customerPhone ? ` - ${customerPhone}` : ""
     description = `Vehicle RC Download - ${registrationNumber}${phoneSuffix}`
+  }
+
+  if (getCashfreeConfig().mode === "production") {
+    try {
+      const parsedBase = new URL(appBaseUrl)
+      if (parsedBase.protocol !== "https:") {
+        parsedBase.protocol = "https:"
+        appBaseUrl = parsedBase.toString().replace(/\/$/, "")
+      }
+    } catch {}
   }
 
   const returnUrlBase = `${appBaseUrl}/payment/cashfree/return?transactionId=${encodeURIComponent(transactionId)}`
