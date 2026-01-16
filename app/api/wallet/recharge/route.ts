@@ -3,9 +3,10 @@ import { z } from "zod"
 import crypto from "crypto"
 import { getCurrentUser } from "@/lib/server/session"
 import { dbQuery } from "@/lib/server/db"
+import { MIN_WALLET_RECHARGE_INR } from "@/lib/pricing"
 
 const RechargeSchema = z.object({
-  amount: z.number().positive().max(100000),
+  amount: z.number().min(MIN_WALLET_RECHARGE_INR).max(100000),
 })
 
 export async function POST(req: Request) {

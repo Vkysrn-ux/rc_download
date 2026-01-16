@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { loadRazorpayCheckout } from "@/lib/razorpay-client"
 import { loadCashfree } from "@/lib/cashfree-client"
 import { shareManualPaymentProof } from "@/lib/manual-payment-proof"
+import { MIN_WALLET_RECHARGE_INR } from "@/lib/pricing"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -48,6 +49,7 @@ function phoneDigits(value: string) {
 
 export default function WalletRechargePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, isAuthenticated, refreshUser } = useAuth()
 
   const [amount, setAmount] = useState("")
@@ -63,6 +65,7 @@ export default function WalletRechargePage() {
   const [shareError, setShareError] = useState("")
   const [cashfreePhone, setCashfreePhone] = useState("")
   const proofRef = useRef<HTMLDivElement | null>(null)
+  const amountPrefillRef = useRef(false)
 
   const savedPhoneDigits = phoneDigits(user?.phone || "")
   const hasSavedPhone = savedPhoneDigits.length >= 10 && savedPhoneDigits.length <= 15
@@ -73,6 +76,19 @@ export default function WalletRechargePage() {
   useEffect(() => {
     if (!isAuthenticated) router.push("/login")
   }, [isAuthenticated, router])
+
+  useEffect(() => {
+    if (amountPrefillRef.current) return
+    const amountParam = searchParams.get("amount")
+    if (amountParam) {
+      const parsed = Number.parseFloat(amountParam)
+      if (Number.isFinite(parsed) && parsed > 0) {
+        const normalized = Math.max(MIN_WALLET_RECHARGE_INR, Math.ceil(parsed))
+        setAmount(normalized.toString())
+      }
+    }
+    amountPrefillRef.current = true
+  }, [searchParams])
 
   useEffect(() => {
     const checkMobile = () => {
@@ -138,6 +154,10 @@ export default function WalletRechargePage() {
   const handlePaymentClick = () => {
     setError("")
     if (!numericAmount || numericAmount <= 0) return
+    if (numericAmount < MIN_WALLET_RECHARGE_INR) {
+      setError(`Minimum recharge amount is INR ${MIN_WALLET_RECHARGE_INR}.`)
+      return
+    }
     if (config && !anyPaymentEnabled) {
       setError("Wallet recharge is temporarily unavailable while we upgrade payments.")
       return
@@ -195,6 +215,10 @@ export default function WalletRechargePage() {
   }
 
   const handleConfirmPaid = async () => {
+    if (numericAmount < MIN_WALLET_RECHARGE_INR) {
+      setError(`Minimum recharge amount is INR ${MIN_WALLET_RECHARGE_INR}.`)
+      return
+    }
     setLoading(true)
     setError("")
     const res = await fetch("/api/wallet/recharge", {
@@ -216,6 +240,10 @@ export default function WalletRechargePage() {
   }
 
   const handleRazorpayRecharge = async () => {
+    if (numericAmount < MIN_WALLET_RECHARGE_INR) {
+      setError(`Minimum recharge amount is INR ${MIN_WALLET_RECHARGE_INR}.`)
+      return
+    }
     setLoading(true)
     setError("")
 
@@ -291,6 +319,10 @@ export default function WalletRechargePage() {
   }
 
   const handleCashfreeRecharge = async () => {
+    if (numericAmount < MIN_WALLET_RECHARGE_INR) {
+      setError(`Minimum recharge amount is INR ${MIN_WALLET_RECHARGE_INR}.`)
+      return
+    }
     setLoading(true)
     setError("")
 
@@ -418,9 +450,10 @@ export default function WalletRechargePage() {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     className="h-12 text-lg"
-                    min="1"
+                    min={MIN_WALLET_RECHARGE_INR}
                     step="1"
                   />
+                  <p className="text-xs text-muted-foreground">Minimum recharge amount is INR {MIN_WALLET_RECHARGE_INR}.</p>
                 </div>
               </CardContent>
               <CardFooter>
@@ -428,7 +461,12 @@ export default function WalletRechargePage() {
                   className="w-full h-14 text-lg"
                   size="lg"
                   onClick={handlePaymentClick}
-                  disabled={loading || !numericAmount || numericAmount <= 0 || (config !== null && !anyPaymentEnabled)}
+                  disabled={
+                    loading ||
+                    !numericAmount ||
+                    numericAmount < MIN_WALLET_RECHARGE_INR ||
+                    (config !== null && !anyPaymentEnabled)
+                  }
                 >
                   <CreditCard className="h-5 w-5 mr-3" />
                   {loading && enableCashfree && hasSavedPhone
@@ -486,7 +524,7 @@ export default function WalletRechargePage() {
                   )}
                   <Button
                     onClick={handleCashfreeRecharge}
-                    disabled={loading || !numericAmount || numericAmount <= 0}
+                    disabled={loading || !numericAmount || numericAmount < MIN_WALLET_RECHARGE_INR}
                     className="w-full"
                     size="lg"
                   >
@@ -497,7 +535,7 @@ export default function WalletRechargePage() {
               {enableRazorpay && (
                 <Button
                   onClick={handleRazorpayRecharge}
-                  disabled={loading || !numericAmount || numericAmount <= 0}
+                  disabled={loading || !numericAmount || numericAmount < MIN_WALLET_RECHARGE_INR}
                   className="w-full"
                   size="lg"
                 >
@@ -590,7 +628,12 @@ export default function WalletRechargePage() {
                   </Button>
                 </div>
               ) : (
-                <Button onClick={handleConfirmPaid} disabled={loading} className="w-full" size="lg">
+                <Button
+                  onClick={handleConfirmPaid}
+                  disabled={loading || !numericAmount || numericAmount < MIN_WALLET_RECHARGE_INR}
+                  className="w-full"
+                  size="lg"
+                >
                   {loading ? "Saving..." : "I've Paid (Manual)"}
                 </Button>
               )}

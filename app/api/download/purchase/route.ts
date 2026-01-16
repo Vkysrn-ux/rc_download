@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
   const manualUpiEnabled = (process.env.PAYMENTS_ENABLE_MANUAL_UPI ?? "").toLowerCase() === "true"
   const user = await getCurrentUser().catch(() => null)
-  const isGuest = parsed.data.guest === true || !user
+  const isGuest = !user
   const price = getRcDownloadPriceInr(isGuest)
   const registrationNumber = normalizeRegistration(parsed.data.registrationNumber)
 
@@ -50,6 +50,9 @@ export async function POST(req: Request) {
 
   if (!manualUpiEnabled) {
     return NextResponse.json({ ok: false, error: "Manual UPI payments are temporarily disabled." }, { status: 503 })
+  }
+  if (!isGuest) {
+    return NextResponse.json({ ok: false, error: "Registered users must pay via wallet." }, { status: 403 })
   }
 
   // UPI payment: record transaction (pending unless autoApprove)

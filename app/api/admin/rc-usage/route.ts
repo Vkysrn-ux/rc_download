@@ -8,6 +8,8 @@ function readIndexedEnv(baseName: string, index: number) {
   return process.env[`${baseName}_${index}`]
 }
 
+const MAX_RC_PROVIDERS = 4
+
 function classifyRcVariant(baseUrl: string | null) {
   const value = (baseUrl || "").toLowerCase()
   if (!value) return "unknown"
@@ -19,6 +21,44 @@ function classifyRcVariant(baseUrl: string | null) {
   return "unknown"
 }
 
+function getConfiguredProviderRefs() {
+  const refs: string[] = []
+  for (let index = 1; index <= MAX_RC_PROVIDERS; index++) {
+    const baseUrl = readIndexedEnv("RC_API_BASE_URL", index)
+    if (baseUrl) refs.push(String(index))
+  }
+  if ((process.env.RC_API_APNIRC_B2B_AUTHORIZATION || "").trim()) refs.push("apnirc-b2b")
+  return refs
+}
+
+function getConfiguredVariants() {
+  const variants: string[] = []
+  const seen = new Set<string>()
+
+  for (let index = 1; index <= MAX_RC_PROVIDERS; index++) {
+    const baseUrl = readIndexedEnv("RC_API_BASE_URL", index)
+    if (!baseUrl) continue
+    const variant = classifyRcVariant(baseUrl)
+    if (!seen.has(variant)) {
+      seen.add(variant)
+      variants.push(variant)
+    }
+  }
+
+  if ((process.env.RC_API_APNIRC_B2B_AUTHORIZATION || "").trim()) {
+    const baseUrl = (process.env.RC_API_APNIRC_B2B_URL || "https://api.apnirc.xyz/api/b2b/get-rc").trim()
+    if (baseUrl) {
+      const variant = classifyRcVariant(baseUrl)
+      if (!seen.has(variant)) {
+        seen.add(variant)
+        variants.push(variant)
+      }
+    }
+  }
+
+  return variants
+}
+
 function resolveProviderBaseUrl(providerRef: string | null) {
   if (!providerRef) return null
   if (providerRef === "apnirc-b2b") return (process.env.RC_API_APNIRC_B2B_URL || "https://api.apnirc.xyz/api/b2b/get-rc").trim() || null
@@ -26,6 +66,8 @@ function resolveProviderBaseUrl(providerRef: string | null) {
   if (!Number.isFinite(index) || index <= 0) return null
   return readIndexedEnv("RC_API_BASE_URL", index) ?? null
 }
+
+const VARIANT_ORDER = ["cashfree-vrs", "rc-full", "apnirc", "rc-v2", "rc-lite", "unknown"]
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -51,6 +93,10 @@ export async function GET(req: NextRequest) {
   const wantByVehicle = wants("byVehicle")
   const wantByUser = wants("byUser")
   const wantRecent = wants("recent")
+
+  const configuredProviderRefs = new Set(getConfiguredProviderRefs())
+  const configuredVariants = getConfiguredVariants()
+  const hasConfiguredProviders = configuredProviderRefs.size > 0
 
   let apiCallsByVariant: { variant: string; hits: number; successes: number; failures: number }[] = []
   if (wantApiCalls) {
@@ -87,9 +133,19 @@ export async function GET(req: NextRequest) {
     "rc-lite": "rc-lite",
     apnirc: "apnirc",
   }
-  const apiCalls = apiCallOrder.map((variant) => {
+  let variantsToShow = configuredVariants.length
+    ? configuredVariants
+    : apiCallOrder.filter((variant) => apiCallsByVariant.some((row) => row.variant === variant))
+  if (variantsToShow.length === 0) variantsToShow = apiCallOrder
+
+  const apiCalls = variantsToShow.map((variant) => {
     const row = apiCallsByVariant.find((r) => r.variant === variant)
-    return { name: apiCallLabel[variant], hits: row?.hits ?? 0, successes: row?.successes ?? 0, failures: row?.failures ?? 0 }
+    return {
+      name: apiCallLabel[variant] ?? variant,
+      hits: row?.hits ?? 0,
+      successes: row?.successes ?? 0,
+      failures: row?.failures ?? 0,
+    }
   })
 
   let totalLookups = 0
@@ -123,12 +179,14 @@ export async function GET(req: NextRequest) {
       )
     : []
 
-  const externalByProvider = externalByProviderRef.map((r) => {
-    const providerRef = r.provider_ref ? String(r.provider_ref) : null
-    const baseUrl = resolveProviderBaseUrl(providerRef)
-    const variant = classifyRcVariant(baseUrl)
-    return { providerRef, baseUrl, variant, hits: Number(r.hits) }
-  })
+  const externalByProvider = externalByProviderRef
+    .map((r) => {
+      const providerRef = r.provider_ref ? String(r.provider_ref) : null
+      const baseUrl = resolveProviderBaseUrl(providerRef)
+      const variant = classifyRcVariant(baseUrl)
+      return { providerRef, baseUrl, variant, hits: Number(r.hits) }
+    })
+    .filter((item) => !hasConfiguredProviders || !item.providerRef || configuredProviderRefs.has(item.providerRef))
 
   const cacheByProviderRef = needCacheProviderStats
     ? await dbQuery<{ provider_ref: string | null; hits: string | number }>(
@@ -140,12 +198,14 @@ export async function GET(req: NextRequest) {
       )
     : []
 
-  const cacheByProvider = cacheByProviderRef.map((r) => {
-    const providerRef = r.provider_ref ? String(r.provider_ref) : null
-    const baseUrl = resolveProviderBaseUrl(providerRef)
-    const variant = classifyRcVariant(baseUrl)
-    return { providerRef, baseUrl, variant, hits: Number(r.hits) }
-  })
+  const cacheByProvider = cacheByProviderRef
+    .map((r) => {
+      const providerRef = r.provider_ref ? String(r.provider_ref) : null
+      const baseUrl = resolveProviderBaseUrl(providerRef)
+      const variant = classifyRcVariant(baseUrl)
+      return { providerRef, baseUrl, variant, hits: Number(r.hits) }
+    })
+    .filter((item) => !hasConfiguredProviders || !item.providerRef || configuredProviderRefs.has(item.providerRef))
 
   const externalByVariantMap = new Map<string, number>()
   for (const item of externalByProvider) {
@@ -165,13 +225,6 @@ export async function GET(req: NextRequest) {
 
   const byProvider = (() => {
     if (!wantByProvider) return []
-    const configuredProviderRefs = new Set<string>()
-    for (let index = 1; index <= 4; index++) {
-      const baseUrl = readIndexedEnv("RC_API_BASE_URL", index)
-      if (baseUrl) configuredProviderRefs.add(String(index))
-    }
-    if ((process.env.RC_API_APNIRC_B2B_AUTHORIZATION || "").trim()) configuredProviderRefs.add("apnirc-b2b")
-
     const byProviderMap = new Map<
       string,
       { providerRef: string | null; baseUrl: string | null; variant: string; externalHits: number; cacheHits: number; totalHits: number }
@@ -219,24 +272,93 @@ export async function GET(req: NextRequest) {
         user_key: string
         user_name: string | null
         user_email: string | null
-        surepass_hits: string | number
-        cache_reused: string | number
-        total: string | number
+        provider: "external" | "cache"
+        provider_ref: string | null
+        hits: string | number
       }>(
         `SELECT COALESCE(u.id, 'guest') AS user_key,
                 u.name AS user_name,
                 u.email AS user_email,
-                SUM(d.provider = 'external') AS surepass_hits,
-                SUM(d.provider = 'cache') AS cache_reused,
-                COUNT(*) AS total
+                d.provider AS provider,
+                d.provider_ref AS provider_ref,
+                COUNT(*) AS hits
          FROM rc_documents d
          LEFT JOIN users u ON u.id = d.user_id
          WHERE d.provider IN ('external', 'cache')
-         GROUP BY user_key, u.name, u.email
-         ORDER BY total DESC
-         LIMIT 50`,
+         GROUP BY user_key, u.name, u.email, d.provider, d.provider_ref`,
       )
     : []
+
+  const byUserStats = (() => {
+    if (!wantByUser) return []
+    const byUserMap = new Map<
+      string,
+      {
+        id: string | null
+        name: string
+        email: string
+        surepassHits: number
+        cacheReused: number
+        total: number
+        externalByVariant: Map<string, number>
+      }
+    >()
+
+    for (const row of byUser) {
+      const key = row.user_key
+      const isGuest = key === "guest"
+      const entry =
+        byUserMap.get(key) ??
+        (() => {
+          const created = {
+            id: isGuest ? null : key,
+            name: isGuest ? "Guest" : row.user_name ?? "",
+            email: isGuest ? "" : row.user_email ?? "",
+            surepassHits: 0,
+            cacheReused: 0,
+            total: 0,
+            externalByVariant: new Map<string, number>(),
+          }
+          byUserMap.set(key, created)
+          return created
+        })()
+
+      const hits = Number(row.hits)
+      if (row.provider === "cache") {
+        entry.cacheReused += hits
+        entry.total += hits
+        continue
+      }
+
+      entry.surepassHits += hits
+      entry.total += hits
+
+      const providerRef = row.provider_ref ? String(row.provider_ref) : null
+      const variant = classifyRcVariant(resolveProviderBaseUrl(providerRef))
+      entry.externalByVariant.set(variant, (entry.externalByVariant.get(variant) || 0) + hits)
+    }
+
+    const orderMap = new Map(VARIANT_ORDER.map((variant, index) => [variant, index]))
+    return Array.from(byUserMap.values())
+      .map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        email: entry.email,
+        surepassHits: entry.surepassHits,
+        cacheReused: entry.cacheReused,
+        total: entry.total,
+        externalByVariant: Array.from(entry.externalByVariant.entries())
+          .map(([variant, hits]) => ({ variant, hits }))
+          .sort((a, b) => {
+            const orderA = orderMap.get(a.variant) ?? orderMap.size
+            const orderB = orderMap.get(b.variant) ?? orderMap.size
+            if (orderA !== orderB) return orderA - orderB
+            return b.hits - a.hits
+          }),
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 50)
+  })()
 
   const recent = wantRecent
     ? await dbQuery<{
@@ -294,14 +416,7 @@ export async function GET(req: NextRequest) {
       : {}),
     ...(wantByUser
       ? {
-          byUser: byUser.map((r) => ({
-            id: r.user_key === "guest" ? null : r.user_key,
-            name: r.user_key === "guest" ? "Guest" : r.user_name ?? "",
-            email: r.user_key === "guest" ? "" : r.user_email ?? "",
-            surepassHits: Number(r.surepass_hits),
-            cacheReused: Number(r.cache_reused),
-            total: Number(r.total),
-          })),
+          byUser: byUserStats,
         }
       : {}),
     ...(wantRecent

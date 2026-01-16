@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     )
     const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
     if (walletBalance < REGISTERED_RC_DOWNLOAD_PRICE_INR) {
-      return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please recharge wallet." }, { status: 402 })
+      return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please top up via Cashfree." }, { status: 402 })
     }
 
     const result = await lookupRc(registrationNumber, { userId: user?.id ?? null, bypassCache })
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     )
     const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
     if (walletBalance < REGISTERED_RC_DOWNLOAD_PRICE_INR) {
-      return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please recharge wallet." }, { status: 402 })
+      return NextResponse.json({ ok: false, error: "Insufficient wallet balance. Please top up via Cashfree." }, { status: 402 })
     }
 
     const result = await lookupRc(registrationNumber, { userId: user?.id ?? null })

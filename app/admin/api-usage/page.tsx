@@ -28,7 +28,15 @@ type RcUsageResponse = {
     totalHits: number
   }[]
   byVehicle?: { registrationNumber: string; surepassHits: number; cacheReused: number; total: number }[]
-  byUser?: { id: string | null; name: string; email: string; surepassHits: number; cacheReused: number; total: number }[]
+  byUser?: {
+    id: string | null
+    name: string
+    email: string
+    surepassHits: number
+    cacheReused: number
+    total: number
+    externalByVariant?: { variant: string; hits: number }[]
+  }[]
   recent?: {
     id: string
     registrationNumber: string
@@ -41,13 +49,105 @@ type RcUsageResponse = {
   }[]
 }
 
+type RecentRange = "today" | "week" | "month" | "all"
+
+const IST_LOCALE = "en-IN"
+const IST_TIMEZONE = "Asia/Kolkata"
+const IST_OFFSET_MS = 330 * 60 * 1000
+const SOURCE_TZ_OFFSET_MINUTES = Number(process.env.NEXT_PUBLIC_RC_TIMESTAMP_SOURCE_OFFSET_MINUTES ?? "0")
+const SOURCE_TZ_OFFSET_MS = Number.isFinite(SOURCE_TZ_OFFSET_MINUTES) ? SOURCE_TZ_OFFSET_MINUTES * 60 * 1000 : 0
+const VARIANT_LABELS: Record<string, string> = {
+  "cashfree-vrs": "Cashfree",
+  "rc-full": "RC-full",
+  apnirc: "Apnirc",
+  "rc-v2": "RC-v2",
+  "rc-lite": "RC-lite",
+  unknown: "External",
+}
+
+function parseUtcTimestamp(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const normalized = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T")
+  const hasZone = /[zZ]|[+-]\d\d(?::?\d\d)?$/.test(normalized)
+  if (hasZone) {
+    const date = new Date(normalized)
+    if (!Number.isFinite(date.getTime())) return null
+    return date
+  }
+
+  const parts = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/)
+  if (!parts) return null
+  const [, year, month, day, hour, minute, second] = parts
+  const utcMs =
+    Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second || "0"),
+    ) - SOURCE_TZ_OFFSET_MS
+  const date = new Date(utcMs)
+  if (!Number.isFinite(date.getTime())) return null
+  return date
+}
+
+function formatIstTimestamp(value: string) {
+  const date = parseUtcTimestamp(value)
+  if (!date) return value
+  const formatted = new Intl.DateTimeFormat(IST_LOCALE, {
+    timeZone: IST_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date)
+  return `${formatted} IST (GMT+5:30)`
+}
+
+function formatVariantLabel(variant: string) {
+  return VARIANT_LABELS[variant] ?? variant
+}
+
+function getIstRangeStartUtc(range: RecentRange, nowUtc: Date) {
+  if (range === "all") return null
+
+  const istNow = new Date(nowUtc.getTime() + IST_OFFSET_MS)
+  const startIst = new Date(istNow)
+
+  if (range === "today") {
+    startIst.setUTCHours(0, 0, 0, 0)
+    return new Date(startIst.getTime() - IST_OFFSET_MS)
+  }
+
+  if (range === "week") {
+    const day = startIst.getUTCDay()
+    const diff = (day + 6) % 7
+    startIst.setUTCDate(startIst.getUTCDate() - diff)
+    startIst.setUTCHours(0, 0, 0, 0)
+    return new Date(startIst.getTime() - IST_OFFSET_MS)
+  }
+
+  if (range === "month") {
+    startIst.setUTCDate(1)
+    startIst.setUTCHours(0, 0, 0, 0)
+    return new Date(startIst.getTime() - IST_OFFSET_MS)
+  }
+
+  return null
+}
+
 export default function AdminApiUsagePage() {
   const router = useRouter()
   const { user, isAuthenticated, logout } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [search, setSearch] = useState("")
-  const [recentRange, setRecentRange] = useState<"today" | "week" | "month" | "all">("today")
+  const [recentRange, setRecentRange] = useState<RecentRange>("today")
   const [counts, setCounts] = useState({ totalLookups: 0, surepassHits: 0, cacheReused: 0 })
   const [apiCalls, setApiCalls] = useState<RcUsageResponse["apiCalls"]>([])
   const [externalByVariant, setExternalByVariant] = useState<RcUsageResponse["externalByVariant"]>([])
@@ -119,28 +219,14 @@ export default function AdminApiUsagePage() {
   }, [topVehiclesOpen, topVehiclesLoaded, loadingTopVehicles])
 
   const filteredRecent = useMemo(() => {
-    const now = new Date()
-    let start: Date | null = null
-
-    if (recentRange === "today") {
-      start = new Date(now)
-      start.setHours(0, 0, 0, 0)
-    } else if (recentRange === "week") {
-      start = new Date(now)
-      const day = start.getDay()
-      const diff = (day + 6) % 7
-      start.setDate(start.getDate() - diff)
-      start.setHours(0, 0, 0, 0)
-    } else if (recentRange === "month") {
-      start = new Date(now.getFullYear(), now.getMonth(), 1)
-      start.setHours(0, 0, 0, 0)
-    }
+    const nowUtc = new Date()
+    const startUtc = getIstRangeStartUtc(recentRange, nowUtc)
 
     const withinRange = (recent || []).filter((r) => {
-      const timestamp = new Date(r.timestamp)
-      if (!Number.isFinite(timestamp.getTime())) return false
-      if (start && timestamp < start) return false
-      if (timestamp > now) return false
+      const timestamp = parseUtcTimestamp(r.timestamp)
+      if (!timestamp || !Number.isFinite(timestamp.getTime())) return false
+      if (startUtc && timestamp < startUtc) return false
+      if (timestamp > nowUtc) return false
       return true
     })
 
@@ -410,9 +496,17 @@ export default function AdminApiUsagePage() {
                         <div className="text-sm font-medium truncate">{u.name}</div>
                         {u.email && <div className="text-xs text-muted-foreground truncate">{u.email}</div>}
                       </div>
-                      <div className="flex items-center gap-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
                         <Badge variant="secondary">Total {u.total}</Badge>
-                        <Badge variant="default">Surepass {u.surepassHits}</Badge>
+                        {(u.externalByVariant || []).length > 0 ? (
+                          (u.externalByVariant || []).map((v) => (
+                            <Badge key={v.variant} variant="default">
+                              {formatVariantLabel(v.variant)} {v.hits}
+                            </Badge>
+                          ))
+                        ) : (
+                          <Badge variant="default">Surepass {u.surepassHits}</Badge>
+                        )}
                         <Badge variant="outline">Cache {u.cacheReused}</Badge>
                       </div>
                     </div>
@@ -477,7 +571,7 @@ export default function AdminApiUsagePage() {
                             </div>
                           ) : null}
                         </div>
-                        <div className="text-xs text-muted-foreground">{new Date(r.timestamp).toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">{formatIstTimestamp(r.timestamp)}</div>
                       </div>
                     ))
                   )}

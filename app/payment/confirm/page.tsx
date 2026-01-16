@@ -8,7 +8,7 @@ import { loadCashfree } from "@/lib/cashfree-client"
 import { shareManualPaymentProof } from "@/lib/manual-payment-proof"
 import { RcDownloadStepper } from "@/components/rc-download-stepper"
 import { formatInr } from "@/lib/format"
-import { getRcDownloadPriceInr } from "@/lib/pricing"
+import { getRcDownloadPriceInr, MIN_WALLET_RECHARGE_INR } from "@/lib/pricing"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -53,7 +53,7 @@ function PaymentConfirmContent() {
   const { user, isAuthenticated, refreshUser } = useAuth()
 
   const registration = searchParams.get("registration") || ""
-  const isGuest = searchParams.get("guest") === "true"
+  const isGuest = !isAuthenticated
 
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -74,11 +74,18 @@ function PaymentConfirmContent() {
     ? `${"*".repeat(Math.max(0, savedPhoneDigits.length - 4))}${savedPhoneDigits.slice(-4)}`
     : ""
 
-  const price = getRcDownloadPriceInr(isGuest || !isAuthenticated)
+  const price = getRcDownloadPriceInr(isGuest)
   const enableRazorpay = Boolean(config?.enableRazorpay)
   const enableManualUpi = Boolean(config?.enableManualUpi)
   const enableCashfree = Boolean(config?.enableCashfree)
-  const canPayWithWallet = isAuthenticated && !isGuest
+  const canPayWithWallet = isAuthenticated
+  const walletBalanceValue = Number(user?.walletBalance ?? 0)
+  const walletBalance = Number.isFinite(walletBalanceValue) ? walletBalanceValue : 0
+  const walletShortfall = Math.max(0, price - walletBalance)
+  const recommendedTopup = Math.max(MIN_WALLET_RECHARGE_INR, Math.ceil(walletShortfall))
+  const topupLabel = enableCashfree ? "Top up with Cashfree" : "Add Money to Wallet"
+  const topupLink = `/wallet/recharge?amount=${recommendedTopup}`
+  const hasInsufficientWallet = Boolean(isAuthenticated && user && walletBalance < price)
 
   useEffect(() => {
     fetch("/api/payment/config")
@@ -469,18 +476,23 @@ function PaymentConfirmContent() {
                         className="w-full"
                         size="lg"
                         onClick={handleWalletPayment}
-                        disabled={loading || Boolean(isAuthenticated && user && user.walletBalance < price)}
+                        disabled={loading || hasInsufficientWallet}
                       >
                         {loading ? "Processing..." : `Pay ${formatInr(price, { maximumFractionDigits: 0 })}`}
                       </Button>
-                    {isAuthenticated && user && user.walletBalance < price && (
-                      <Button
-                        variant="outline"
-                        className="w-full bg-transparent"
-                        onClick={() => router.push("/wallet/recharge")}
-                      >
-                        Add Money to Wallet
-                      </Button>
+                    {hasInsufficientWallet && (
+                      <>
+                        <div className="text-xs text-muted-foreground">
+                          Insufficient balance. Minimum top up is INR {MIN_WALLET_RECHARGE_INR}.
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="w-full bg-transparent"
+                          onClick={() => router.push(topupLink)}
+                        >
+                          {topupLabel}
+                        </Button>
+                      </>
                     )}
                   </CardFooter>
                 </Card>

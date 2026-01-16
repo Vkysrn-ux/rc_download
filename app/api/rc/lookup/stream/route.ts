@@ -39,7 +39,7 @@ export async function GET(req: Request) {
           )
           const walletBalance = Number(balances[0]?.wallet_balance ?? 0)
           if (walletBalance < REGISTERED_RC_DOWNLOAD_PRICE_INR) {
-            writeEvent(controller, "server_error", { ok: false, error: "Insufficient wallet balance. Please pay to view RC.", status: 402 })
+            writeEvent(controller, "server_error", { ok: false, error: "Insufficient wallet balance. Please top up via Cashfree.", status: 402 })
             return
           }
         }

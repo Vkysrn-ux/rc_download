@@ -4,7 +4,7 @@ import crypto from "crypto"
 import { dbQuery } from "@/lib/server/db"
 import { getCurrentUser } from "@/lib/server/session"
 import { cashfreeFetch, getCashfreeConfig } from "@/lib/server/cashfree"
-import { getRcDownloadPriceInr } from "@/lib/pricing"
+import { getRcDownloadPriceInr, MIN_WALLET_RECHARGE_INR } from "@/lib/pricing"
 
 const CreateOrderSchema = z.discriminatedUnion("purpose", [
   z.object({
@@ -17,7 +17,7 @@ const CreateOrderSchema = z.discriminatedUnion("purpose", [
   }),
   z.object({
     purpose: z.literal("recharge"),
-    amount: z.number().positive().max(100000),
+    amount: z.number().min(MIN_WALLET_RECHARGE_INR).max(100000),
     customerName: z.string().max(80).optional(),
     customerEmail: z.string().max(255).optional(),
     customerPhone: z.string().max(30).optional(),
@@ -105,6 +105,9 @@ export async function POST(req: Request) {
 
   const appBaseUrl = process.env.APP_BASE_URL || new URL(req.url).origin
   const user = await getCurrentUser().catch(() => null)
+  if (parsed.data.purpose === "download" && user) {
+    return NextResponse.json({ ok: false, error: "Registered users must pay via wallet." }, { status: 403 })
+  }
 
   let transactionId = crypto.randomUUID()
   const orderId = makeOrderId(transactionId)

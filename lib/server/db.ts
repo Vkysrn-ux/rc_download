@@ -23,6 +23,7 @@ export function getDbPool(): mysql.Pool {
     user,
     password,
     database,
+    timezone: "Z",
     waitForConnections: true,
     connectionLimit: 10,
     maxIdle: 10,

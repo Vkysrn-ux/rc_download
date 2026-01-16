@@ -87,7 +87,7 @@ export default function TermsPage() {
                 <li>Wallet balance has no expiry date</li>
                 <li>Wallet funds can only be used for RC document downloads</li>
                 <li>Wallet recharges are non-transferable and non-refundable</li>
-                <li>Minimum recharge amount is ₹100</li>
+                <li>Minimum recharge amount is ₹50</li>
                 <li>Account closure will result in forfeiture of remaining wallet balance</li>
               </ul>
             </section>
