@@ -55,12 +55,23 @@ export default function ServiceCatalog({
   const router = useRouter()
   const { isAuthenticated } = useAuth()
 
+  const defaultGuestPhone = useMemo(() => {
+    const raw =
+      (process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_NUMBER || process.env.NEXT_PUBLIC_ADMIN_WHATSAPP_NUMBER || "").trim()
+    const digits = raw.replace(/\D/g, "")
+    if (digits.length === 10) return `+91${digits}`
+    if (digits.length >= 10 && digits.length <= 15) return `+${digits}`
+    return "+91"
+  }, [])
+
   const rcGuestPrice = GUEST_RC_DOWNLOAD_PRICE_INR
   const rcRegisteredPrice = REGISTERED_RC_DOWNLOAD_PRICE_INR
   const rcDisplayPrice = isAuthenticated ? rcRegisteredPrice : rcGuestPrice
 
   const panDisplayPrice = getPanDetailsPriceInr(!isAuthenticated)
+  const rcToMobileRegisteredPrice = getRcToMobilePriceInr(false)
   const rcToMobileDisplayPrice = getRcToMobilePriceInr(!isAuthenticated)
+  const ownerHistoryRegisteredPrice = getRcOwnerHistoryPriceInr(false)
   const ownerHistoryDisplayPrice = getRcOwnerHistoryPriceInr(!isAuthenticated)
 
   const services = useMemo<Service[]>(
@@ -107,7 +118,13 @@ export default function ServiceCatalog({
   const [rcWhatsappInternal, setRcWhatsappInternal] = useState("+91")
   const [rcResultInternal, setRcResultInternal] = useState<string | null>(null)
 
+  const [guestPhone, setGuestPhone] = useState(defaultGuestPhone)
   const [rcToMobileRegistration, setRcToMobileRegistration] = useState("")
+  const [rcToMobileLoading, setRcToMobileLoading] = useState(false)
+  const [rcToMobileError, setRcToMobileError] = useState("")
+  const [rcToMobileData, setRcToMobileData] = useState<any | null>(null)
+  const [rcToMobileFetchedReg, setRcToMobileFetchedReg] = useState("")
+  const rcToMobileAutoStartedRef = useRef(false)
   const [panNumber, setPanNumber] = useState("")
   const [panLoading, setPanLoading] = useState(false)
   const [panError, setPanError] = useState("")
@@ -115,22 +132,41 @@ export default function ServiceCatalog({
   const [panFetched, setPanFetched] = useState("")
   const panAutoStartedRef = useRef(false)
   const [ownerHistoryRegistration, setOwnerHistoryRegistration] = useState("")
+  const [ownerHistoryLoading, setOwnerHistoryLoading] = useState(false)
+  const [ownerHistoryError, setOwnerHistoryError] = useState("")
+  const [ownerHistoryData, setOwnerHistoryData] = useState<any | null>(null)
+  const [ownerHistoryFetchedReg, setOwnerHistoryFetchedReg] = useState("")
+  const ownerHistoryAutoStartedRef = useRef(false)
 
   const rcRegistration = rcRegistrationProp ?? rcRegistrationInternal
   const rcWhatsapp = rcWhatsappProp ?? rcWhatsappInternal
   const rcResult = rcResultProp ?? rcResultInternal
+
+  const guestPhoneDigits = (guestPhone || "").replace(/\D/g, "")
+  const guestPhoneValid = guestPhoneDigits.length >= 10 && guestPhoneDigits.length <= 15
 
   useEffect(() => {
     if (rcResultProp !== undefined) return
     if (typeof window === "undefined") return
 
     const params = new URLSearchParams(window.location.search)
+    const purpose = (params.get("purpose") || "").trim()
+    if (purpose) return
     const transactionId = params.get("transactionId")
     const registration = params.get("registration")
     if (transactionId && registration) {
       setRcResultInternal(`PAY_SUCCESS::${registration}::${transactionId}`)
     }
   }, [rcResultProp])
+
+  const resetRcToMobileCard = () => {
+    setRcToMobileRegistration("")
+    setRcToMobileLoading(false)
+    setRcToMobileError("")
+    setRcToMobileData(null)
+    setRcToMobileFetchedReg("")
+    rcToMobileAutoStartedRef.current = false
+  }
 
   const resetPanCard = () => {
     setPanNumber("")
@@ -141,11 +177,56 @@ export default function ServiceCatalog({
     panAutoStartedRef.current = false
   }
 
+  const resetOwnerHistoryCard = () => {
+    setOwnerHistoryRegistration("")
+    setOwnerHistoryLoading(false)
+    setOwnerHistoryError("")
+    setOwnerHistoryData(null)
+    setOwnerHistoryFetchedReg("")
+    ownerHistoryAutoStartedRef.current = false
+  }
+
+  useEffect(() => {
+    if (!rcToMobileData) return
+    const timeoutId = window.setTimeout(() => resetRcToMobileCard(), 30_000)
+    return () => window.clearTimeout(timeoutId)
+  }, [rcToMobileData])
+
   useEffect(() => {
     if (!panData) return
     const timeoutId = window.setTimeout(() => resetPanCard(), 30_000)
     return () => window.clearTimeout(timeoutId)
   }, [panData])
+
+  useEffect(() => {
+    if (!ownerHistoryData) return
+    const timeoutId = window.setTimeout(() => resetOwnerHistoryCard(), 30_000)
+    return () => window.clearTimeout(timeoutId)
+  }, [ownerHistoryData])
+
+  const fetchRcToMobile = async (opts?: { transactionId?: string; reg?: string }) => {
+    const reg = normalizeRegistration(opts?.reg ?? rcToMobileRegistration)
+    if (!reg || rcToMobileLoading) return
+    setRcToMobileError("")
+    setRcToMobileData(null)
+    setRcToMobileLoading(true)
+    try {
+      const transactionId = (opts?.transactionId || "").trim()
+      const url = transactionId
+        ? `/api/rc/to-mobile?registrationNumber=${encodeURIComponent(reg)}&transactionId=${encodeURIComponent(transactionId)}`
+        : `/api/rc/to-mobile?registrationNumber=${encodeURIComponent(reg)}`
+      const res = await fetch(url, { method: "GET" })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "RC-to-mobile lookup failed")
+      setRcToMobileData(json?.data ?? null)
+      setRcToMobileFetchedReg(reg)
+      setRcToMobileRegistration(reg)
+    } catch (e: any) {
+      setRcToMobileError(e?.message || "RC-to-mobile lookup failed")
+    } finally {
+      setRcToMobileLoading(false)
+    }
+  }
 
   const fetchPanDetails = async (opts?: { transactionId?: string; pan?: string }) => {
     const pan = normalizeRegistration(opts?.pan ?? panNumber)
@@ -171,16 +252,73 @@ export default function ServiceCatalog({
     }
   }
 
+  const fetchOwnerHistory = async (opts?: { transactionId?: string; reg?: string }) => {
+    const reg = normalizeRegistration(opts?.reg ?? ownerHistoryRegistration)
+    if (!reg || ownerHistoryLoading) return
+    setOwnerHistoryError("")
+    setOwnerHistoryData(null)
+    setOwnerHistoryLoading(true)
+    try {
+      const transactionId = (opts?.transactionId || "").trim()
+      const url = transactionId
+        ? `/api/rc/owner-history?registrationNumber=${encodeURIComponent(reg)}&transactionId=${encodeURIComponent(transactionId)}`
+        : `/api/rc/owner-history?registrationNumber=${encodeURIComponent(reg)}`
+      const res = await fetch(url, { method: "GET" })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "Owner history lookup failed")
+      setOwnerHistoryData(json?.data ?? null)
+      setOwnerHistoryFetchedReg(reg)
+      setOwnerHistoryRegistration(reg)
+    } catch (e: any) {
+      setOwnerHistoryError(e?.message || "Owner history lookup failed")
+    } finally {
+      setOwnerHistoryLoading(false)
+    }
+  }
+
+  const handleRcToMobilePayGuest = async () => {
+    const reg = normalizeRegistration(rcToMobileRegistration)
+    if (!reg) return
+    if (!guestPhoneValid) {
+      setRcToMobileError("Please enter a valid phone number (with country code).")
+      return
+    }
+    setRcToMobileError("")
+    setRcToMobileLoading(true)
+    try {
+      const res = await fetch("/api/cashfree/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ purpose: "rc_to_mobile", registrationNumber: reg, guest: true, customerPhone: guestPhone }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || "Unable to start payment")
+
+      const mode = json?.mode || "sandbox"
+      const loader = await import("@/lib/cashfree-client")
+      const cashfree = await loader.loadCashfree(mode)
+      if (!cashfree) throw new Error("Cashfree failed to load")
+      await cashfree.checkout({ paymentSessionId: json.paymentSessionId, redirectTarget: "_self" } as any)
+    } catch (e: any) {
+      setRcToMobileError(e?.message || "Payment failed")
+      setRcToMobileLoading(false)
+    }
+  }
+
   const handlePanPayGuest = async () => {
     const pan = normalizeRegistration(panNumber)
     if (!pan) return
+    if (!guestPhoneValid) {
+      setPanError("Please enter a valid phone number (with country code).")
+      return
+    }
     setPanError("")
     setPanLoading(true)
     try {
       const res = await fetch("/api/cashfree/order", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ purpose: "pan_details", panNumber: pan, guest: true }),
+        body: JSON.stringify({ purpose: "pan_details", panNumber: pan, guest: true, customerPhone: guestPhone }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || "Unable to start payment")
@@ -193,6 +331,35 @@ export default function ServiceCatalog({
     } catch (e: any) {
       setPanError(e?.message || "Payment failed")
       setPanLoading(false)
+    }
+  }
+
+  const handleOwnerHistoryPayGuest = async () => {
+    const reg = normalizeRegistration(ownerHistoryRegistration)
+    if (!reg) return
+    if (!guestPhoneValid) {
+      setOwnerHistoryError("Please enter a valid phone number (with country code).")
+      return
+    }
+    setOwnerHistoryError("")
+    setOwnerHistoryLoading(true)
+    try {
+      const res = await fetch("/api/cashfree/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ purpose: "rc_owner_history", registrationNumber: reg, guest: true, customerPhone: guestPhone }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || "Unable to start payment")
+
+      const mode = json?.mode || "sandbox"
+      const loader = await import("@/lib/cashfree-client")
+      const cashfree = await loader.loadCashfree(mode)
+      if (!cashfree) throw new Error("Cashfree failed to load")
+      await cashfree.checkout({ paymentSessionId: json.paymentSessionId, redirectTarget: "_self" } as any)
+    } catch (e: any) {
+      setOwnerHistoryError(e?.message || "Payment failed")
+      setOwnerHistoryLoading(false)
     }
   }
 
@@ -212,6 +379,35 @@ export default function ServiceCatalog({
     setPanNumber(normalizedPan)
     // Ensure state settles before calling.
     setTimeout(() => void fetchPanDetails({ transactionId, pan: normalizedPan }), 0)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const params = new URLSearchParams(window.location.search)
+    const purpose = (params.get("purpose") || "").trim().toLowerCase()
+    const transactionId = params.get("transactionId") || ""
+    const registration = params.get("registration") || ""
+    if (!transactionId || !registration) return
+
+    if (purpose === "rc_to_mobile") {
+      if (rcToMobileAutoStartedRef.current) return
+      rcToMobileAutoStartedRef.current = true
+      setOpenServiceId("rc_to_mobile")
+      const normalized = normalizeRegistration(registration)
+      setRcToMobileRegistration(normalized)
+      setTimeout(() => void fetchRcToMobile({ transactionId, reg: normalized }), 0)
+      return
+    }
+
+    if (purpose === "rc_owner_history") {
+      if (ownerHistoryAutoStartedRef.current) return
+      ownerHistoryAutoStartedRef.current = true
+      setOpenServiceId("rc_owner_history")
+      const normalized = normalizeRegistration(registration)
+      setOwnerHistoryRegistration(normalized)
+      setTimeout(() => void fetchOwnerHistory({ transactionId, reg: normalized }), 0)
+    }
   }, [])
 
   const handleRcPayInternal = async () => {
@@ -280,6 +476,25 @@ export default function ServiceCatalog({
           <div className="text-xs text-muted-foreground -mt-1">per download</div>
 
           <div className="mt-4 space-y-4">
+            {!isAuthenticated ? (
+              <div className="space-y-2">
+                <Label htmlFor="guest-phone-pan" className="text-xs font-semibold uppercase tracking-wide">
+                  Mobile Number
+                </Label>
+                <Input
+                  id="guest-phone-pan"
+                  placeholder="+91XXXXXXXXXX"
+                  value={guestPhone}
+                  onChange={(e) => setGuestPhone(e.target.value)}
+                  onFocus={() => {
+                    if (!guestPhone) setGuestPhone("+91")
+                  }}
+                  className="h-11"
+                  autoComplete="tel"
+                  inputMode="tel"
+                />
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor="rc-vrn" className="text-xs font-semibold uppercase tracking-wide">
                 Vehicle Registration Number
@@ -397,7 +612,12 @@ export default function ServiceCatalog({
             ) : isAuthenticated ? (
               <Button
                 className="w-full h-11"
-                disabled={!normalizeRegistration(panNumber) || panLoading || (Boolean(panFetched) && panFetched === normalizeRegistration(panNumber))}
+                disabled={
+                  !normalizeRegistration(panNumber) ||
+                  !guestPhoneValid ||
+                  panLoading ||
+                  (Boolean(panFetched) && panFetched === normalizeRegistration(panNumber))
+                }
                 onClick={() => void fetchPanDetails()}
               >
                 {panLoading ? "Fetching..." : `Fetch PAN Details (₹${panDisplayPrice})`}
@@ -418,7 +638,71 @@ export default function ServiceCatalog({
                 {(() => {
                   const root = panData as any
                   const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
-                  const normalizeValue = (value: unknown) => String(value ?? "").trim()
+                  const formatValue = (value: unknown): string => {
+                    if (value === null || value === undefined) return ""
+                    if (typeof value === "string") return value.trim()
+                    if (typeof value === "number" || typeof value === "boolean") return String(value)
+                    if (Array.isArray(value)) return value.map(formatValue).filter(Boolean).join(", ")
+                    if (typeof value === "object") {
+                      const obj = value as Record<string, unknown>
+                      const addressKeys = [
+                        "house",
+                        "house_no",
+                        "houseNo",
+                        "door_no",
+                        "doorNo",
+                        "building",
+                        "street",
+                        "locality",
+                        "area",
+                        "landmark",
+                        "city",
+                        "district",
+                        "state",
+                        "pincode",
+                        "pin_code",
+                        "postal_code",
+                        "country",
+                      ]
+                      const parts = addressKeys.map((k) => formatValue(obj[k])).filter(Boolean)
+                      if (parts.length) return parts.join(", ")
+                      try {
+                        return JSON.stringify(obj)
+                      } catch {
+                        return ""
+                      }
+                    }
+                    return ""
+                  }
+
+                  const deepFindString = (value: unknown, keyMatchers: Array<(key: string) => boolean>): string => {
+                    const seen = new Set<unknown>()
+                    const walk = (node: unknown): string => {
+                      if (!node || typeof node !== "object") return ""
+                      if (seen.has(node)) return ""
+                      seen.add(node)
+                      if (Array.isArray(node)) {
+                        for (const item of node) {
+                          const found = walk(item)
+                          if (found) return found
+                        }
+                        return ""
+                      }
+                      const obj = node as Record<string, unknown>
+                      for (const [key, entry] of Object.entries(obj)) {
+                        if (keyMatchers.some((m) => m(key))) {
+                          const val = formatValue(entry)
+                          if (val) return val
+                        }
+                      }
+                      for (const entry of Object.values(obj)) {
+                        const found = walk(entry)
+                        if (found) return found
+                      }
+                      return ""
+                    }
+                    return walk(value)
+                  }
                   const formatDate = (value: string) => {
                     const text = (value || "").trim()
                     if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
@@ -428,18 +712,38 @@ export default function ServiceCatalog({
                     return text
                   }
 
-                  const nameProvided = normalizeValue(core?.name_provided ?? core?.nameProvided ?? core?.input_name ?? core?.inputName)
-                  const pan = normalizeValue(core?.pan_number ?? core?.panNumber ?? core?.pan ?? panNumber)
+                  const nameProvided = ""
+                  const pan = formatValue(core?.pan_number ?? core?.panNumber ?? core?.pan ?? panNumber)
 
-                  const firstName = normalizeValue(core?.first_name ?? core?.firstName)
-                  const lastName = normalizeValue(core?.last_name ?? core?.lastName)
-                  const registeredName = normalizeValue(core?.registered_name ?? core?.registeredName ?? core?.full_name ?? core?.fullName)
-                  const panType = normalizeValue(core?.pan_type ?? core?.panType ?? core?.type)
-                  const gender = normalizeValue(core?.gender)
-                  const dob = formatDate(normalizeValue(core?.date_of_birth ?? core?.dateOfBirth ?? core?.dob))
-                  const maskedAadhaar = normalizeValue(core?.masked_aadhaar ?? core?.maskedAadhaar ?? core?.aadhaar_masked ?? core?.aadhaarMasked)
-                  const email = normalizeValue(core?.email ?? core?.email_id ?? core?.emailId)
-                  const mobile = normalizeValue(core?.mobile_number ?? core?.mobileNumber ?? core?.mobile ?? core?.phone ?? core?.phone_number ?? core?.phoneNumber)
+                  const firstName = formatValue(core?.first_name ?? core?.firstName)
+                  const lastName = formatValue(core?.last_name ?? core?.lastName)
+                  const registeredName = formatValue(core?.registered_name ?? core?.registeredName ?? core?.full_name ?? core?.fullName)
+                  const panType = formatValue(core?.pan_type ?? core?.panType ?? core?.type)
+                  const gender = formatValue(core?.gender)
+                  const dob = formatDate(formatValue(core?.date_of_birth ?? core?.dateOfBirth ?? core?.dob))
+                  const maskedAadhaar =
+                    formatValue(
+                      core?.masked_aadhaar ??
+                        core?.maskedAadhaar ??
+                        core?.masked_aadhaar_number ??
+                        core?.maskedAadhaarNumber ??
+                        core?.masked_aadhar ??
+                        core?.maskedAadhar ??
+                        core?.masked_aadhar_number ??
+                        core?.maskedAadharNumber ??
+                        core?.aadhaar_masked ??
+                        core?.aadhaarMasked ??
+                        core?.aadhar_masked ??
+                        core?.aadharMasked,
+                    ) ||
+                    deepFindString(core, [
+                      (k) => k.toLowerCase().includes("masked_aadhaar"),
+                      (k) => k.toLowerCase().includes("masked_aadhar"),
+                      (k) => k.toLowerCase().includes("aadhaar") && k.toLowerCase().includes("masked"),
+                      (k) => k.toLowerCase().includes("aadhar") && k.toLowerCase().includes("masked"),
+                    ])
+                  const email = formatValue(core?.email ?? core?.email_id ?? core?.emailId)
+                  const mobile = formatValue(core?.mobile_number ?? core?.mobileNumber ?? core?.mobile ?? core?.phone ?? core?.phone_number ?? core?.phoneNumber)
 
                   const aadhaarLinkRaw = core?.aadhaar_link ?? core?.aadhaarLink ?? core?.aadhaar_linked ?? core?.aadhaarLinked
                   const aadhaarLink =
@@ -447,10 +751,10 @@ export default function ServiceCatalog({
                       ? aadhaarLinkRaw
                         ? "True"
                         : "False"
-                      : normalizeValue(aadhaarLinkRaw)
+                      : formatValue(aadhaarLinkRaw)
 
-                  const address = normalizeValue(core?.address ?? core?.full_address ?? core?.fullAddress)
-                  const panRefId = normalizeValue(
+                  const address = formatValue(core?.address ?? core?.full_address ?? core?.fullAddress)
+                  const panRefId = formatValue(
                     core?.pan_ref_id ??
                       core?.panRefId ??
                       core?.reference_id ??
@@ -458,19 +762,19 @@ export default function ServiceCatalog({
                       core?.verification_id ??
                       core?.verificationId,
                   )
-                  const status = normalizeValue(core?.status ?? core?.pan_status ?? core?.panStatus ?? core?.message_code ?? core?.messageCode)
-                  const message = normalizeValue(core?.message ?? core?.result_message ?? core?.resultMessage ?? core?.remarks)
-                  const nameOnCard = normalizeValue(
+                  const status = formatValue(core?.status ?? core?.pan_status ?? core?.panStatus ?? core?.message_code ?? core?.messageCode)
+                  const message = formatValue(core?.message ?? core?.result_message ?? core?.resultMessage ?? core?.remarks)
+                  const nameOnCard = formatValue(
                     core?.name_on_pan_card ?? core?.nameOnPanCard ?? core?.name_pan_card ?? core?.namePanCard,
                   )
 
-                  const items: Array<{ label: string; value: string }> = [
-                    { label: "Name Provided", value: nameProvided || "-" },
-                    { label: "PAN", value: pan || "-" },
-                    { label: "First Name", value: firstName || "-" },
-                    { label: "Last Name", value: lastName || "-" },
-                    { label: "Registered Name", value: registeredName || "-" },
-                    { label: "PAN Type", value: panType || "-" },
+                    const items: Array<{ label: string; value: string }> = [
+                      { label: "Name Pan Card", value: nameOnCard || "-" },
+                      { label: "PAN", value: pan || "-" },
+                      { label: "First Name", value: firstName || "-" },
+                      { label: "Last Name", value: lastName || "-" },
+                      { label: "Registered Name", value: registeredName || "-" },
+                      { label: "PAN Type", value: panType || "-" },
                     { label: "Gender", value: gender || "-" },
                     { label: "Date of Birth", value: dob || "-" },
                     { label: "Masked Aadhaar", value: maskedAadhaar || "-" },
@@ -481,7 +785,6 @@ export default function ServiceCatalog({
                     { label: "PAN Ref. ID", value: panRefId || "-" },
                     { label: "Status", value: status || "-" },
                     { label: "Message", value: message || "-" },
-                    { label: "Name Pan Card", value: nameOnCard || "-" },
                   ]
 
                   return (
@@ -522,15 +825,118 @@ export default function ServiceCatalog({
                 id="rc-to-mobile-vrn"
                 placeholder="MH12AB1234"
                 value={rcToMobileRegistration}
-                onChange={(e) => setRcToMobileRegistration(e.target.value.toUpperCase())}
+                onChange={(e) => {
+                  if (rcToMobileData) return
+                  setRcToMobileRegistration(e.target.value.toUpperCase())
+                }}
                 className="h-11 font-mono tracking-widest"
                 autoComplete="off"
+                disabled={rcToMobileLoading || Boolean(rcToMobileData)}
               />
             </div>
 
-            <Button className="w-full h-11" disabled>
-              Coming Soon
-            </Button>
+            {rcToMobileError ? <div className="text-sm text-destructive">{rcToMobileError}</div> : null}
+
+            {rcToMobileData ? (
+              <Button className="w-full h-11" variant="outline" onClick={resetRcToMobileCard}>
+                Clear
+              </Button>
+            ) : isAuthenticated ? (
+              <Button
+                className="w-full h-11"
+                disabled={
+                  !normalizeRegistration(rcToMobileRegistration) ||
+                  rcToMobileLoading ||
+                  (Boolean(rcToMobileFetchedReg) && rcToMobileFetchedReg === normalizeRegistration(rcToMobileRegistration))
+                }
+                onClick={() => void fetchRcToMobile()}
+              >
+                {rcToMobileLoading ? "Fetching..." : `Fetch Mobile (ƒ,1${rcToMobileDisplayPrice})`}
+              </Button>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="guest-phone-rc-to-mobile" className="text-xs font-semibold uppercase tracking-wide">
+                    Mobile Number
+                  </Label>
+                  <Input
+                    id="guest-phone-rc-to-mobile"
+                    placeholder="+91XXXXXXXXXX"
+                    value={guestPhone}
+                    onChange={(e) => setGuestPhone(e.target.value)}
+                    onFocus={() => {
+                      if (!guestPhone) setGuestPhone("+91")
+                    }}
+                    className="h-11"
+                    autoComplete="tel"
+                    inputMode="tel"
+                  />
+                </div>
+                <Button
+                  className="w-full h-11"
+                  disabled={
+                    !normalizeRegistration(rcToMobileRegistration) ||
+                    !guestPhoneValid ||
+                    rcToMobileLoading ||
+                    (Boolean(rcToMobileFetchedReg) && rcToMobileFetchedReg === normalizeRegistration(rcToMobileRegistration))
+                  }
+                  onClick={() => void handleRcToMobilePayGuest()}
+                >
+                  {rcToMobileLoading ? "Starting payment..." : `Pay ƒ,1${rcToMobileDisplayPrice}`}
+                </Button>
+                <Button variant="outline" className="w-full h-11" onClick={() => router.push("/login")}>
+                  Login & Pay ƒ,1{rcToMobileRegisteredPrice}
+                </Button>
+              </>
+            )}
+
+            {rcToMobileData ? (
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <div className="text-sm font-semibold mb-2">Result</div>
+                {(() => {
+                  const root = rcToMobileData as any
+                  const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
+                  const rcNumber = String(
+                    core?.rc_number ??
+                      core?.rcNumber ??
+                      core?.registration_number ??
+                      core?.registrationNumber ??
+                      rcToMobileRegistration ??
+                      "",
+                  )
+                  const mobile =
+                    String(
+                      core?.mobile_number ??
+                        core?.mobileNumber ??
+                        core?.mobile ??
+                        core?.phone ??
+                        core?.phone_number ??
+                        core?.phoneNumber ??
+                        core?.linked_mobile ??
+                        core?.linkedMobile ??
+                        "",
+                    ) || "-"
+
+                  const items: Array<{ label: string; value: string }> = [
+                    { label: "RC Number", value: rcNumber || "-" },
+                    { label: "Mobile Number", value: mobile },
+                  ]
+
+                  return (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {items.map((item) => (
+                        <div key={item.label} className="rounded-md border bg-white p-3">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {item.label}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold break-words whitespace-normal">{item.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+            ) : null}
           </div>
         </div>
       )
@@ -554,15 +960,108 @@ export default function ServiceCatalog({
                 id="owner-history-vrn"
                 placeholder="MH12AB1234"
                 value={ownerHistoryRegistration}
-                onChange={(e) => setOwnerHistoryRegistration(e.target.value.toUpperCase())}
+                onChange={(e) => {
+                  if (ownerHistoryData) return
+                  setOwnerHistoryRegistration(e.target.value.toUpperCase())
+                }}
                 className="h-11 font-mono tracking-widest"
                 autoComplete="off"
+                disabled={ownerHistoryLoading || Boolean(ownerHistoryData)}
               />
             </div>
 
-            <Button className="w-full h-11" disabled>
-              Coming Soon
-            </Button>
+            {ownerHistoryError ? <div className="text-sm text-destructive">{ownerHistoryError}</div> : null}
+
+            {ownerHistoryData ? (
+              <Button className="w-full h-11" variant="outline" onClick={resetOwnerHistoryCard}>
+                Clear
+              </Button>
+            ) : isAuthenticated ? (
+              <Button
+                className="w-full h-11"
+                disabled={
+                  !normalizeRegistration(ownerHistoryRegistration) ||
+                  ownerHistoryLoading ||
+                  (Boolean(ownerHistoryFetchedReg) &&
+                    ownerHistoryFetchedReg === normalizeRegistration(ownerHistoryRegistration))
+                }
+                onClick={() => void fetchOwnerHistory()}
+              >
+                {ownerHistoryLoading ? "Fetching..." : `Fetch Owner History (ƒ,1${ownerHistoryDisplayPrice})`}
+              </Button>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="guest-phone-owner-history" className="text-xs font-semibold uppercase tracking-wide">
+                    Mobile Number
+                  </Label>
+                  <Input
+                    id="guest-phone-owner-history"
+                    placeholder="+91XXXXXXXXXX"
+                    value={guestPhone}
+                    onChange={(e) => setGuestPhone(e.target.value)}
+                    onFocus={() => {
+                      if (!guestPhone) setGuestPhone("+91")
+                    }}
+                    className="h-11"
+                    autoComplete="tel"
+                    inputMode="tel"
+                  />
+                </div>
+                <Button
+                  className="w-full h-11"
+                  disabled={
+                    !normalizeRegistration(ownerHistoryRegistration) ||
+                    !guestPhoneValid ||
+                    ownerHistoryLoading ||
+                    (Boolean(ownerHistoryFetchedReg) &&
+                      ownerHistoryFetchedReg === normalizeRegistration(ownerHistoryRegistration))
+                  }
+                  onClick={() => void handleOwnerHistoryPayGuest()}
+                >
+                  {ownerHistoryLoading ? "Starting payment..." : `Pay ƒ,1${ownerHistoryDisplayPrice}`}
+                </Button>
+                <Button variant="outline" className="w-full h-11" onClick={() => router.push("/login")}>
+                  Login & Pay ƒ,1{ownerHistoryRegisteredPrice}
+                </Button>
+              </>
+            )}
+
+            {ownerHistoryData ? (
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <div className="text-sm font-semibold mb-2">Result</div>
+                {(() => {
+                  const root = ownerHistoryData as any
+                  const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
+                  const history = Array.isArray(core?.owner_history) ? core.owner_history : []
+                  const firstHistory = history[0] ?? {}
+                  const rcNumber = String(core?.rc_number ?? core?.rcNumber ?? core?.registration_number ?? core?.registrationNumber ?? "")
+                  const currentOwnerName = String(core?.current_owner_name ?? core?.currentOwnerName ?? "")
+                  const ownerName = String(firstHistory?.owner_name ?? firstHistory?.ownerName ?? "")
+                  const ownerNumber = String(firstHistory?.owner_number ?? firstHistory?.ownerNumber ?? "")
+
+                  const items: Array<{ label: string; value: string }> = [
+                    { label: "RC Number", value: rcNumber || "-" },
+                    { label: "Current Owner Name", value: currentOwnerName || "-" },
+                    { label: "Owner Name", value: ownerName || "-" },
+                    { label: "Owner Number", value: ownerNumber || "-" },
+                  ]
+
+                  return (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {items.map((item) => (
+                        <div key={item.label} className="rounded-md border bg-white p-3">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {item.label}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold break-words whitespace-normal">{item.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+            ) : null}
           </div>
         </div>
       )

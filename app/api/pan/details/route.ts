@@ -11,6 +11,7 @@ import { getPanDetailsPriceInr, REGISTERED_PAN_DETAILS_PRICE_INR } from "@/lib/p
 
 const LookupSchema = z.object({
   panNumber: z.string().min(5).max(32),
+  name: z.string().max(120).optional(),
   transactionId: z.string().uuid().optional(),
 })
 
@@ -107,12 +108,13 @@ function shouldTreatAsSuccess(payload: any) {
   return true
 }
 
-async function fetchPanDetails(panNumber: string) {
+async function fetchPanDetails(panNumber: string, name?: string | null) {
   const urlRaw = (process.env.PAN_DETAILS_API_URL || "").trim()
   if (!urlRaw) throw new ExternalApiError(501, "PAN details API not configured")
 
   const method = normalizeHttpMethod(process.env.PAN_DETAILS_API_METHOD)
   const payloadField = (process.env.PAN_DETAILS_API_PAYLOAD_FIELD || "pan").trim() || "pan"
+  const nameField = (process.env.PAN_DETAILS_API_NAME_FIELD || "name").trim() || "name"
 
   const authHeaderName = (process.env.PAN_DETAILS_API_AUTH_HEADER_NAME || "authorization").trim() || "authorization"
   const authSchemeRaw = process.env.PAN_DETAILS_API_AUTH_SCHEME
@@ -148,9 +150,12 @@ async function fetchPanDetails(panNumber: string) {
   let requestUrl = urlRaw
   let body: string | undefined
 
+  const nameValue = (name || "").trim()
+
   if (method === "GET") {
     const url = new URL(urlRaw)
     url.searchParams.set(payloadField, panNumber)
+    if (nameValue) url.searchParams.set(nameField, nameValue)
     if (extraParams) {
       for (const [key, value] of Object.entries(extraParams)) url.searchParams.set(key, value)
     }
@@ -158,6 +163,7 @@ async function fetchPanDetails(panNumber: string) {
   } else {
     headers["content-type"] = headers["content-type"] || "application/json"
     const payload: Record<string, unknown> = { ...(extraParams || {}), [payloadField]: panNumber }
+    if (nameValue) payload[nameField] = nameValue
     const referenceIdValue = payload["reference_id"]
     if (typeof referenceIdValue === "string" && (!referenceIdValue.trim() || referenceIdValue.trim().toUpperCase() === "AUTO")) {
       payload["reference_id"] = generateNumericReferenceId()
@@ -233,17 +239,20 @@ async function verifyGuestPayment(transactionId: string, panNumber: string) {
   if (stored && stored !== panNumber) throw new ExternalApiError(400, "PAN mismatch")
 }
 
-async function handleRequest(args: { panNumberRaw: string; transactionId?: string | null }) {
+async function handleRequest(args: { panNumberRaw: string; name?: string | null; transactionId?: string | null }) {
   const panNumber = normalizePan(args.panNumberRaw)
   if (!panNumber) return NextResponse.json({ ok: false, error: "Invalid PAN number" }, { status: 400 })
 
   const user = await getCurrentUser().catch(() => null)
+  const nameFromRequest = (args.name || "").trim()
+  const defaultName = (user?.name || process.env.PAN_DETAILS_API_DEFAULT_NAME || "Customer").trim()
+  const nameForApi = (nameFromRequest || defaultName || "Customer").trim()
   if (!user) {
     const txnId = (args.transactionId || "").trim()
     if (!txnId) return NextResponse.json({ ok: false, error: "Payment required" }, { status: 402 })
     await verifyGuestPayment(txnId, panNumber)
 
-    const data = await fetchPanDetails(panNumber)
+    const data = await fetchPanDetails(panNumber, nameForApi)
     return NextResponse.json({ ok: true, panNumber, walletCharged: false, data })
   }
 
@@ -256,7 +265,7 @@ async function handleRequest(args: { panNumberRaw: string; transactionId?: strin
     return NextResponse.json({ ok: false, error: "Insufficient wallet balance." }, { status: 402 })
   }
 
-  const data = await fetchPanDetails(panNumber)
+  const data = await fetchPanDetails(panNumber, nameForApi)
 
   const charged = await chargeWalletForDownload({
     userId: user.id,
@@ -278,10 +287,11 @@ async function handleRequest(args: { panNumberRaw: string; transactionId?: strin
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const panNumber = url.searchParams.get("panNumber") || ""
+  const name = url.searchParams.get("name")
   const transactionId = url.searchParams.get("transactionId")
 
   try {
-    return await handleRequest({ panNumberRaw: panNumber, transactionId })
+    return await handleRequest({ panNumberRaw: panNumber, name, transactionId })
   } catch (error: any) {
     if (error instanceof WalletError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status })
     if (error instanceof ExternalApiError) {
@@ -299,7 +309,11 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid input" }, { status: 400 })
 
   try {
-    return await handleRequest({ panNumberRaw: parsed.data.panNumber, transactionId: parsed.data.transactionId })
+    return await handleRequest({
+      panNumberRaw: parsed.data.panNumber,
+      name: parsed.data.name,
+      transactionId: parsed.data.transactionId,
+    })
   } catch (error: any) {
     if (error instanceof WalletError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status })
     if (error instanceof ExternalApiError) {

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FileClock, FileImage, FileText, IdCard, LogOut, MessageCircle, Plus, Search, Smartphone, Wallet, WalletCards, Zap } from "lucide-react"
+import { ChevronDown, FileClock, FileImage, FileText, IdCard, LogOut, MessageCircle, Plus, Search, Smartphone, Wallet, WalletCards, Zap } from "lucide-react"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 
@@ -45,6 +45,8 @@ export default function DashboardPage() {
   const waUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}` : "/helpdesk"
   const [walletOpen, setWalletOpen] = useState(false)
   const [activeService, setActiveService] = useState<DashboardServiceId>("rc_download")
+  const [mobileOpenServiceId, setMobileOpenServiceId] = useState<DashboardServiceId | null>("rc_download")
+  const servicePanelRef = useRef<HTMLDivElement | null>(null)
   const [downloadRegistration, setDownloadRegistration] = useState("")
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [fetchingRc, setFetchingRc] = useState(false)
@@ -603,8 +605,88 @@ export default function DashboardPage() {
             <p className="text-sm sm:text-lg text-muted-foreground">Manage your wallet and download RC documents</p>
           </div>
 
+          <div className="grid gap-4 lg:hidden">
+            {[
+              {
+                id: "rc_download" as const,
+                title: "RC Download",
+                subtitle: `${formatInr(REGISTERED_RC_DOWNLOAD_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} via wallet`,
+                icon: Zap,
+                iconClassName: "bg-blue-50 text-primary",
+              },
+              {
+                id: "pan_details" as const,
+                title: "PAN Details",
+                subtitle: `${formatInr(REGISTERED_PAN_DETAILS_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} via wallet`,
+                icon: IdCard,
+                iconClassName: "bg-emerald-50 text-emerald-700",
+              },
+              {
+                id: "rc_to_mobile" as const,
+                title: "RC to Mobile Number",
+                subtitle: `${formatInr(REGISTERED_RC_TO_MOBILE_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} via wallet`,
+                icon: Smartphone,
+                iconClassName: "bg-emerald-50 text-emerald-700",
+              },
+              {
+                id: "rc_owner_history" as const,
+                title: "RC Owner History",
+                subtitle: `${formatInr(REGISTERED_RC_OWNER_HISTORY_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} via wallet`,
+                icon: FileClock,
+                iconClassName: "bg-purple-50 text-purple-700",
+              },
+            ].map((service) => {
+              const Icon = service.icon
+              const isOpen = mobileOpenServiceId === service.id
+              return (
+                <button
+                  key={service.id}
+                  type="button"
+                  onClick={() => {
+                    if (isOpen) {
+                      setMobileOpenServiceId(null)
+                      return
+                    }
+                    setActiveService(service.id)
+                    setMobileOpenServiceId(service.id)
+                    requestAnimationFrame(() => servicePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))
+                  }}
+                  className={cn(
+                    "w-full rounded-xl border-2 bg-white text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    isOpen ? "border-primary/60 shadow-sm" : "border-primary/20 hover:border-primary/40",
+                  )}
+                >
+                  <div className="px-4 py-4 flex items-center gap-3">
+                    <div className={cn("p-2 rounded-lg shrink-0", service.iconClassName)}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold leading-tight break-words whitespace-normal">{service.title}</div>
+                          <div className="text-xs text-muted-foreground break-words whitespace-normal">{service.subtitle}</div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <div className="text-[10px] text-muted-foreground hidden sm:block">
+                            {isOpen ? "Click to Collapse" : "Click to Expand"}
+                          </div>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 text-muted-foreground transition-transform",
+                              isOpen ? "rotate-180" : "",
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
           <div className="grid gap-6 lg:grid-cols-3">
-            <Card className="order-1 lg:order-1 border-primary/20 shadow-md">
+            <Card className="order-1 lg:order-1 border-primary/20 shadow-md hidden lg:block">
               <CardHeader>
                 <CardTitle className="text-xl sm:text-2xl">Services</CardTitle>
                 <CardDescription>Select a service to continue</CardDescription>
@@ -684,6 +766,10 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
+            <div
+              ref={servicePanelRef}
+              className={cn(mobileOpenServiceId ? "" : "hidden", "lg:block")}
+            >
             {activeService === "rc_download" ? (
               <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
                 <CardHeader>
@@ -869,7 +955,71 @@ export default function DashboardPage() {
                       {(() => {
                         const root = panData as any
                         const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
-                        const normalizeValue = (value: unknown) => String(value ?? "").trim()
+                        const formatValue = (value: unknown): string => {
+                          if (value === null || value === undefined) return ""
+                          if (typeof value === "string") return value.trim()
+                          if (typeof value === "number" || typeof value === "boolean") return String(value)
+                          if (Array.isArray(value)) return value.map(formatValue).filter(Boolean).join(", ")
+                          if (typeof value === "object") {
+                            const obj = value as Record<string, unknown>
+                            const addressKeys = [
+                              "house",
+                              "house_no",
+                              "houseNo",
+                              "door_no",
+                              "doorNo",
+                              "building",
+                              "street",
+                              "locality",
+                              "area",
+                              "landmark",
+                              "city",
+                              "district",
+                              "state",
+                              "pincode",
+                              "pin_code",
+                              "postal_code",
+                              "country",
+                            ]
+                            const parts = addressKeys.map((k) => formatValue(obj[k])).filter(Boolean)
+                            if (parts.length) return parts.join(", ")
+                            try {
+                              return JSON.stringify(obj)
+                            } catch {
+                              return ""
+                            }
+                          }
+                          return ""
+                        }
+
+                        const deepFindString = (value: unknown, keyMatchers: Array<(key: string) => boolean>): string => {
+                          const seen = new Set<unknown>()
+                          const walk = (node: unknown): string => {
+                            if (!node || typeof node !== "object") return ""
+                            if (seen.has(node)) return ""
+                            seen.add(node)
+                            if (Array.isArray(node)) {
+                              for (const item of node) {
+                                const found = walk(item)
+                                if (found) return found
+                              }
+                              return ""
+                            }
+                            const obj = node as Record<string, unknown>
+                            for (const [key, entry] of Object.entries(obj)) {
+                              if (keyMatchers.some((m) => m(key))) {
+                                const val = formatValue(entry)
+                                if (val) return val
+                              }
+                            }
+                            for (const entry of Object.values(obj)) {
+                              const found = walk(entry)
+                              if (found) return found
+                            }
+                            return ""
+                          }
+                          return walk(value)
+                        }
                         const formatDate = (value: string) => {
                           const text = (value || "").trim()
                           if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
@@ -879,18 +1029,38 @@ export default function DashboardPage() {
                           return text
                         }
 
-                        const nameProvided = normalizeValue(core?.name_provided ?? core?.nameProvided ?? core?.input_name ?? core?.inputName)
-                        const pan = normalizeValue(core?.pan_number ?? core?.panNumber ?? core?.pan ?? panLookup)
+                        const nameProvided = ""
+                        const pan = formatValue(core?.pan_number ?? core?.panNumber ?? core?.pan ?? panLookup)
 
-                        const firstName = normalizeValue(core?.first_name ?? core?.firstName)
-                        const lastName = normalizeValue(core?.last_name ?? core?.lastName)
-                        const registeredName = normalizeValue(core?.registered_name ?? core?.registeredName ?? core?.full_name ?? core?.fullName)
-                        const panType = normalizeValue(core?.pan_type ?? core?.panType ?? core?.type)
-                        const gender = normalizeValue(core?.gender)
-                        const dob = formatDate(normalizeValue(core?.date_of_birth ?? core?.dateOfBirth ?? core?.dob))
-                        const maskedAadhaar = normalizeValue(core?.masked_aadhaar ?? core?.maskedAadhaar ?? core?.aadhaar_masked ?? core?.aadhaarMasked)
-                        const email = normalizeValue(core?.email ?? core?.email_id ?? core?.emailId)
-                        const mobile = normalizeValue(core?.mobile_number ?? core?.mobileNumber ?? core?.mobile ?? core?.phone ?? core?.phone_number ?? core?.phoneNumber)
+                        const firstName = formatValue(core?.first_name ?? core?.firstName)
+                        const lastName = formatValue(core?.last_name ?? core?.lastName)
+                        const registeredName = formatValue(core?.registered_name ?? core?.registeredName ?? core?.full_name ?? core?.fullName)
+                        const panType = formatValue(core?.pan_type ?? core?.panType ?? core?.type)
+                        const gender = formatValue(core?.gender)
+                        const dob = formatDate(formatValue(core?.date_of_birth ?? core?.dateOfBirth ?? core?.dob))
+                        const maskedAadhaar =
+                          formatValue(
+                            core?.masked_aadhaar ??
+                              core?.maskedAadhaar ??
+                              core?.masked_aadhaar_number ??
+                              core?.maskedAadhaarNumber ??
+                              core?.masked_aadhar ??
+                              core?.maskedAadhar ??
+                              core?.masked_aadhar_number ??
+                              core?.maskedAadharNumber ??
+                              core?.aadhaar_masked ??
+                              core?.aadhaarMasked ??
+                              core?.aadhar_masked ??
+                              core?.aadharMasked,
+                          ) ||
+                          deepFindString(core, [
+                            (k) => k.toLowerCase().includes("masked_aadhaar"),
+                            (k) => k.toLowerCase().includes("masked_aadhar"),
+                            (k) => k.toLowerCase().includes("aadhaar") && k.toLowerCase().includes("masked"),
+                            (k) => k.toLowerCase().includes("aadhar") && k.toLowerCase().includes("masked"),
+                          ])
+                        const email = formatValue(core?.email ?? core?.email_id ?? core?.emailId)
+                        const mobile = formatValue(core?.mobile_number ?? core?.mobileNumber ?? core?.mobile ?? core?.phone ?? core?.phone_number ?? core?.phoneNumber)
 
                         const aadhaarLinkRaw = core?.aadhaar_link ?? core?.aadhaarLink ?? core?.aadhaar_linked ?? core?.aadhaarLinked
                         const aadhaarLink =
@@ -898,10 +1068,10 @@ export default function DashboardPage() {
                             ? aadhaarLinkRaw
                               ? "True"
                               : "False"
-                            : normalizeValue(aadhaarLinkRaw)
+                      : formatValue(aadhaarLinkRaw)
 
-                        const address = normalizeValue(core?.address ?? core?.full_address ?? core?.fullAddress)
-                        const panRefId = normalizeValue(
+                        const address = formatValue(core?.address ?? core?.full_address ?? core?.fullAddress)
+                        const panRefId = formatValue(
                           core?.pan_ref_id ??
                             core?.panRefId ??
                             core?.reference_id ??
@@ -909,14 +1079,14 @@ export default function DashboardPage() {
                             core?.verification_id ??
                             core?.verificationId,
                         )
-                        const status = normalizeValue(core?.status ?? core?.pan_status ?? core?.panStatus ?? core?.message_code ?? core?.messageCode)
-                        const message = normalizeValue(core?.message ?? core?.result_message ?? core?.resultMessage ?? core?.remarks)
-                        const nameOnCard = normalizeValue(
+                        const status = formatValue(core?.status ?? core?.pan_status ?? core?.panStatus ?? core?.message_code ?? core?.messageCode)
+                        const message = formatValue(core?.message ?? core?.result_message ?? core?.resultMessage ?? core?.remarks)
+                        const nameOnCard = formatValue(
                           core?.name_on_pan_card ?? core?.nameOnPanCard ?? core?.name_pan_card ?? core?.namePanCard,
                         )
 
                         const items: Array<{ label: string; value: string }> = [
-                          { label: "Name Provided", value: nameProvided || "-" },
+                          { label: "Name Pan Card", value: nameOnCard || "-" },
                           { label: "PAN", value: pan || "-" },
                           { label: "First Name", value: firstName || "-" },
                           { label: "Last Name", value: lastName || "-" },
@@ -932,7 +1102,6 @@ export default function DashboardPage() {
                           { label: "PAN Ref. ID", value: panRefId || "-" },
                           { label: "Status", value: status || "-" },
                           { label: "Message", value: message || "-" },
-                          { label: "Name Pan Card", value: nameOnCard || "-" },
                         ]
 
                         return (
@@ -1128,6 +1297,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             )}
+            </div>
           </div>
 
           <Card className="shadow-md">

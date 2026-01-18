@@ -58,22 +58,27 @@ function CashfreeReturnContent() {
         return
       }
 
-      // Redirect back to home with params so the Guest Access card can show download actions inline.
-      if (!registration) {
-        if (purpose === "pan_details" && pan) {
-          router.replace(
-            `/services?purpose=pan_details&pan=${encodeURIComponent(pan)}&transactionId=${encodeURIComponent(transactionId)}`,
-          )
-          return
-        }
-
-        router.replace(`/transactions`)
+      if (purpose === "pan_details" && pan) {
+        router.replace(
+          `/services?purpose=pan_details&pan=${encodeURIComponent(pan)}&transactionId=${encodeURIComponent(transactionId)}`,
+        )
         return
       }
 
-      router.replace(
-        `/?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`,
-      )
+      if ((purpose === "rc_to_mobile" || purpose === "rc_owner_history") && registration) {
+        router.replace(
+          `/services?purpose=${encodeURIComponent(purpose)}&registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`,
+        )
+        return
+      }
+
+      // Default: redirect back to home with params so the Guest Access card can show download actions inline.
+      if (registration) {
+        router.replace(`/?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`)
+        return
+      }
+
+      router.replace(`/transactions`)
     }
 
     run().catch(() => {

@@ -5,9 +5,40 @@ import { getCurrentUser } from "@/lib/server/session"
 import { dbQuery } from "@/lib/server/db"
 import { ExternalApiError, normalizeRegistration } from "@/lib/server/rc-lookup"
 import { WalletError, chargeWalletForDownload } from "@/lib/server/wallet"
-import { REGISTERED_RC_TO_MOBILE_PRICE_INR } from "@/lib/pricing"
+import { getRcToMobilePriceInr, REGISTERED_RC_TO_MOBILE_PRICE_INR } from "@/lib/pricing"
 
-const LookupSchema = z.object({ registrationNumber: z.string().min(4).max(32) })
+const LookupSchema = z.object({
+  registrationNumber: z.string().min(4).max(32),
+  transactionId: z.string().uuid().optional(),
+})
+
+async function verifyGuestPayment(transactionId: string, registrationNumber: string) {
+  const rows = await dbQuery<{
+    id: string
+    user_id: string | null
+    type: "recharge" | "download"
+    amount: string | number
+    status: "pending" | "completed" | "failed"
+    payment_method: "wallet" | "upi" | "razorpay" | "cashfree" | null
+    registration_number: string | null
+  }>(
+    "SELECT id, user_id, type, amount, status, payment_method, registration_number FROM transactions WHERE id = ? LIMIT 1",
+    [transactionId],
+  )
+  const txn = rows[0]
+  if (!txn) throw new ExternalApiError(404, "Transaction not found")
+  if (txn.user_id) throw new ExternalApiError(403, "Invalid transaction")
+  if (txn.type !== "download") throw new ExternalApiError(403, "Invalid transaction")
+  if (txn.payment_method !== "cashfree") throw new ExternalApiError(403, "Invalid transaction")
+  if (txn.status !== "completed") throw new ExternalApiError(402, "Payment not completed")
+
+  const expected = getRcToMobilePriceInr(true)
+  const amount = Math.abs(Number(txn.amount))
+  if (amount !== expected) throw new ExternalApiError(400, "Amount mismatch")
+
+  const stored = normalizeRegistration(String(txn.registration_number || ""))
+  if (stored && stored !== registrationNumber) throw new ExternalApiError(400, "Registration mismatch")
+}
 
 function parseJsonRecord(value: string | undefined, label: string): Record<string, string> | null {
   if (!value) return null
@@ -124,11 +155,16 @@ async function fetchRcToMobile(registrationNumber: string) {
   }
 }
 
-async function handleRequest(registrationNumberRaw: string) {
-  const registrationNumber = normalizeRegistration(registrationNumberRaw)
-  const user = await getCurrentUser()
+async function handleRequest(args: { registrationNumberRaw: string; transactionId?: string | null }) {
+  const registrationNumber = normalizeRegistration(args.registrationNumberRaw)
+
+  const user = await getCurrentUser().catch(() => null)
   if (!user) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
+    const txnId = (args.transactionId || "").trim()
+    if (!txnId) return NextResponse.json({ ok: false, error: "Payment required" }, { status: 402 })
+    await verifyGuestPayment(txnId, registrationNumber)
+    const data = await fetchRcToMobile(registrationNumber)
+    return NextResponse.json({ ok: true, registrationNumber, walletCharged: false, data })
   }
 
   const balances = await dbQuery<{ wallet_balance: string | number }>(
@@ -176,9 +212,10 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const reg = url.searchParams.get("registrationNumber")
   if (!reg) return NextResponse.json({ ok: false, error: "Missing registrationNumber" }, { status: 400 })
+  const transactionId = url.searchParams.get("transactionId")
 
   try {
-    return await handleRequest(reg)
+    return await handleRequest({ registrationNumberRaw: reg, transactionId })
   } catch (error: any) {
     if (error instanceof WalletError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status })
@@ -198,7 +235,10 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid input" }, { status: 400 })
 
   try {
-    return await handleRequest(parsed.data.registrationNumber)
+    return await handleRequest({
+      registrationNumberRaw: parsed.data.registrationNumber,
+      transactionId: parsed.data.transactionId,
+    })
   } catch (error: any) {
     if (error instanceof WalletError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status })
@@ -211,4 +251,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: error?.message || "Lookup failed" }, { status: 500 })
   }
 }
-
