@@ -12,6 +12,7 @@ import VirtualRcTemplate from "@/components/virtual-rc"
 import { useRef } from "react"
 import { RCDocumentPairPreview } from "@/components/rc-document-pair"
 import Link from "next/link"
+import ServiceCatalog from "@/components/service-catalog"
 
 const ACCEPT_COOKIE_NAME = "rc_cookie_accepted"
 const ACCEPT_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
@@ -197,7 +198,18 @@ export default function HomePageClient() {
 
       <main className="container mx-auto px-4 pt-20 sm:pt-16 pb-16">
         <div className="max-w-6xl mx-auto space-y-16">
-          <section className="grid md:grid-cols-2 gap-8">
+          <section className="max-w-4xl mx-auto">
+            <ServiceCatalog
+              rcRegistration={guestRegistration}
+              rcWhatsapp={guestPhone}
+              rcResult={guestResult}
+              onRcRegistrationChange={setGuestRegistration}
+              onRcWhatsappChange={setGuestPhone}
+              onRcPay={handlePay}
+            />
+          </section>
+
+          <section className="hidden">
             <Card className="relative overflow-hidden hover:shadow-lg transition-shadow mt-6 md:mt-0">
               <CardHeader className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -475,6 +487,11 @@ export default function HomePageClient() {
                 <li>
                   <Link href="/download" className="text-muted-foreground hover:text-primary transition-colors">
                     Download RC
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/services" className="text-muted-foreground hover:text-primary transition-colors">
+                    Services
                   </Link>
                 </li>
                 <li>
