@@ -538,8 +538,8 @@ export default function HomePageClient() {
                   </a>
                 </li>
                 <li>
-                  <a href="tel:+919677979393" className="text-muted-foreground hover:text-primary transition-colors">
-                    9677979393
+                  <a href="tel:+919344759416" className="text-muted-foreground hover:text-primary transition-colors">
+                    9344759416
                   </a>
                 </li>
               </ul>

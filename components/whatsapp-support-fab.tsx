@@ -1,11 +1,13 @@
 import Link from "next/link"
 
 function sanitizeWhatsAppNumber(value: string) {
-  return (value || "").replace(/[^\d]/g, "")
+  const digits = (value || "").replace(/[^\d]/g, "")
+  if (digits.length === 10) return `91${digits}`
+  return digits
 }
 
 export default function WhatsAppSupportFab() {
-  const waNumber = sanitizeWhatsAppNumber(process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_NUMBER || "919677979393")
+  const waNumber = sanitizeWhatsAppNumber(process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_NUMBER || "9344759416")
   const waText = process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_TEXT || "Hi, I need help with RC Download."
   const waUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}` : "/helpdesk"
 
@@ -39,4 +41,3 @@ export default function WhatsAppSupportFab() {
     </Link>
   )
 }
-

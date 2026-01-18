@@ -44,7 +44,7 @@ export default function HelpdeskPage() {
               <CardDescription>Speak with our support team</CardDescription>
             </CardHeader>
             <CardContent className="text-center space-y-2">
-              <p className="text-foreground font-semibold text-lg">9677979393</p>
+              <p className="text-foreground font-semibold text-lg">9344759416</p>
               <p className="text-sm text-muted-foreground">Mon-Fri: 9:00 AM - 6:00 PM IST</p>
               <p className="text-sm text-muted-foreground">Sat: 9:00 AM - 1:00 PM IST</p>
             </CardContent>

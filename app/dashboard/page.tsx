@@ -39,7 +39,8 @@ type DashboardServiceId = "rc_download" | "pan_details" | "rc_to_mobile" | "rc_o
 export default function DashboardPage() {
   const router = useRouter()
   const { user, isAuthenticated, logout, refreshUser } = useAuth()
-  const waNumber = (process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_NUMBER || "919677979393").replace(/[^0-9]/g, "")
+  const waDigits = (process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_NUMBER || "9344759416").replace(/[^0-9]/g, "")
+  const waNumber = waDigits.length === 10 ? `91${waDigits}` : waDigits
   const waText = process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_TEXT || "Hi, I need help with RC Download."
   const waUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}` : "/helpdesk"
   const [walletOpen, setWalletOpen] = useState(false)

@@ -270,7 +270,7 @@ export default function PrivacyPage() {
                 <p className="text-muted-foreground">Near KVB Bank, Pappanaickenpalayam</p>
                 <p className="text-muted-foreground">Coimbatore, Tamil Nadu 641037, India</p>
                 <p className="text-muted-foreground mt-2">Email: support@vehiclercdownload.com</p>
-                <p className="text-muted-foreground">Phone: 9677979393</p>
+                <p className="text-muted-foreground">Phone: 9344759416</p>
               </div>
             </section>
 
