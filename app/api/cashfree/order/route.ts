@@ -4,12 +4,20 @@ import crypto from "crypto"
 import { dbQuery } from "@/lib/server/db"
 import { getCurrentUser } from "@/lib/server/session"
 import { cashfreeFetch, getCashfreeConfig } from "@/lib/server/cashfree"
-import { getRcDownloadPriceInr, MIN_WALLET_RECHARGE_INR } from "@/lib/pricing"
+import { getPanDetailsPriceInr, getRcDownloadPriceInr, MIN_WALLET_RECHARGE_INR } from "@/lib/pricing"
 
 const CreateOrderSchema = z.discriminatedUnion("purpose", [
   z.object({
     purpose: z.literal("download"),
     registrationNumber: z.string().min(4).max(32),
+    guest: z.boolean().optional(),
+    customerName: z.string().max(80).optional(),
+    customerEmail: z.string().max(255).optional(),
+    customerPhone: z.string().max(30).optional(),
+  }),
+  z.object({
+    purpose: z.literal("pan_details"),
+    panNumber: z.string().min(5).max(32),
     guest: z.boolean().optional(),
     customerName: z.string().max(80).optional(),
     customerEmail: z.string().max(255).optional(),
@@ -115,7 +123,7 @@ export async function POST(req: Request) {
     appBaseUrl = requestOrigin
   }
   const user = await getCurrentUser().catch(() => null)
-  if (parsed.data.purpose === "download" && user) {
+  if ((parsed.data.purpose === "download" || parsed.data.purpose === "pan_details") && user) {
     return NextResponse.json({ ok: false, error: "Registered users must pay via wallet." }, { status: 403 })
   }
 
@@ -133,6 +141,12 @@ export async function POST(req: Request) {
     amountRupees = getRcDownloadPriceInr(isGuest)
     type = "download"
     registrationNumber = normalizeRegistration(parsed.data.registrationNumber)
+    userId = user?.id ?? null
+  } else if (parsed.data.purpose === "pan_details") {
+    const isGuest = parsed.data.guest === true || !user
+    amountRupees = getPanDetailsPriceInr(isGuest)
+    type = "download"
+    registrationNumber = normalizeRegistration(parsed.data.panNumber)
     userId = user?.id ?? null
   } else {
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
@@ -166,10 +180,14 @@ export async function POST(req: Request) {
   if (!customerName || customerName.length < 2) customerName = "Customer"
   // build description now that customer phone/registration are known
   if (type === "download") {
-    const isGuest = parsed.data.purpose === "download" && (parsed.data.guest === true || !user)
+    const isGuest =
+      (parsed.data.purpose === "download" || parsed.data.purpose === "pan_details") && (parsed.data.guest === true || !user)
     // include phone in description for guest downloads so admins can see it in recent activity
     const phoneSuffix = customerPhone ? ` - ${customerPhone}` : ""
-    description = `Vehicle RC Download - ${registrationNumber}${phoneSuffix}`
+    description =
+      parsed.data.purpose === "pan_details"
+        ? `PAN Details - ${registrationNumber}${phoneSuffix}`
+        : `Vehicle RC Download - ${registrationNumber}${phoneSuffix}`
   }
 
   if (getCashfreeConfig().mode === "production") {
@@ -185,7 +203,9 @@ export async function POST(req: Request) {
   const returnUrlBase = `${appBaseUrl}/payment/cashfree/return?transactionId=${encodeURIComponent(transactionId)}`
   const returnUrl =
     type === "download"
-      ? `${returnUrlBase}&registration=${encodeURIComponent(registrationNumber || "")}`
+      ? parsed.data.purpose === "pan_details"
+        ? `${returnUrlBase}&purpose=pan_details&pan=${encodeURIComponent(registrationNumber || "")}`
+        : `${returnUrlBase}&registration=${encodeURIComponent(registrationNumber || "")}`
       : `${returnUrlBase}&recharge=1`
 
   let order: {

@@ -67,7 +67,7 @@ export default function TermsPage() {
               <p className="text-muted-foreground leading-relaxed mb-2">Service fees are as follows:</p>
               <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
                 <li>
-                  <strong>Guest Users:</strong> ₹22 per RC download (direct online payment)
+                  <strong>Guest Users:</strong> ₹23 per RC download (direct online payment)
                 </li>
                 <li>
                   <strong>Registered Users:</strong> ₹18 per RC download (via wallet balance)

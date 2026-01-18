@@ -11,6 +11,8 @@ function CashfreeReturnContent() {
   const searchParams = useSearchParams()
   const transactionId = searchParams.get("transactionId") || ""
   const registration = searchParams.get("registration") || ""
+  const purpose = searchParams.get("purpose") || ""
+  const pan = searchParams.get("pan") || ""
   const isRecharge = searchParams.get("recharge") === "1" || searchParams.get("recharge") === "true"
 
   const [error, setError] = useState("")
@@ -58,6 +60,13 @@ function CashfreeReturnContent() {
 
       // Redirect back to home with params so the Guest Access card can show download actions inline.
       if (!registration) {
+        if (purpose === "pan_details" && pan) {
+          router.replace(
+            `/services?purpose=pan_details&pan=${encodeURIComponent(pan)}&transactionId=${encodeURIComponent(transactionId)}`,
+          )
+          return
+        }
+
         router.replace(`/transactions`)
         return
       }
@@ -136,4 +145,3 @@ export default function CashfreeReturnPage() {
     </Suspense>
   )
 }
-

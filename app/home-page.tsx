@@ -224,7 +224,7 @@ export default function HomePageClient() {
                   </div>
                 </div>
                     <div className="flex items-baseline gap-2 pt-2">
-                      <span className="text-5xl font-bold text-foreground">₹22</span>
+                      <span className="text-5xl font-bold text-foreground">₹23</span>
                       <span className="text-lg text-muted-foreground">per download</span>
                     </div>
               </CardHeader>
@@ -252,7 +252,7 @@ export default function HomePageClient() {
                   </div>
                   <div className="mt-3 flex gap-3">
                     <Button onClick={handlePay} className="w-full">
-                      Pay ₹22
+                      Pay ₹23
                     </Button>
                   </div>
                   <div className="mt-3 text-sm text-muted-foreground">
@@ -297,7 +297,7 @@ export default function HomePageClient() {
                 </div>
                 <div className="flex items-baseline gap-3 pt-2">
                   <span className="text-5xl font-bold text-primary">₹18</span>
-                  <span className="text-lg text-muted-foreground line-through">₹22</span>
+                  <span className="text-lg text-muted-foreground line-through">₹23</span>
                   <span className="text-lg text-muted-foreground">per download</span>
                 </div>
               </CardHeader>
