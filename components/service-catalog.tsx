@@ -7,6 +7,7 @@ import { ChevronDown, FileClock, IdCard, Smartphone, Zap } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
+import { formatInr } from "@/lib/format"
 import {
   getPanDetailsPriceInr,
   getRcOwnerHistoryPriceInr,
@@ -74,6 +75,15 @@ export default function ServiceCatalog({
   const ownerHistoryRegisteredPrice = getRcOwnerHistoryPriceInr(false)
   const ownerHistoryDisplayPrice = getRcOwnerHistoryPriceInr(!isAuthenticated)
 
+  const formatPrice = (value: number) => formatInr(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  const rcDisplayPriceText = formatPrice(rcDisplayPrice)
+  const rcRegisteredPriceText = formatPrice(rcRegisteredPrice)
+  const panDisplayPriceText = formatPrice(panDisplayPrice)
+  const rcToMobileDisplayPriceText = formatPrice(rcToMobileDisplayPrice)
+  const rcToMobileRegisteredPriceText = formatPrice(rcToMobileRegisteredPrice)
+  const ownerHistoryDisplayPriceText = formatPrice(ownerHistoryDisplayPrice)
+  const ownerHistoryRegisteredPriceText = formatPrice(ownerHistoryRegisteredPrice)
+
   const services = useMemo<Service[]>(
     () => [
       {
@@ -118,7 +128,7 @@ export default function ServiceCatalog({
   const [rcWhatsappInternal, setRcWhatsappInternal] = useState("+91")
   const [rcResultInternal, setRcResultInternal] = useState<string | null>(null)
 
-  const [guestPhone, setGuestPhone] = useState(defaultGuestPhone)
+  const guestPhone = defaultGuestPhone
   const [rcToMobileRegistration, setRcToMobileRegistration] = useState("")
   const [rcToMobileLoading, setRcToMobileLoading] = useState(false)
   const [rcToMobileError, setRcToMobileError] = useState("")
@@ -280,7 +290,7 @@ export default function ServiceCatalog({
     const reg = normalizeRegistration(rcToMobileRegistration)
     if (!reg) return
     if (!guestPhoneValid) {
-      setRcToMobileError("Please enter a valid phone number (with country code).")
+      setRcToMobileError("Payment phone is not configured. Please contact support.")
       return
     }
     setRcToMobileError("")
@@ -309,7 +319,7 @@ export default function ServiceCatalog({
     const pan = normalizeRegistration(panNumber)
     if (!pan) return
     if (!guestPhoneValid) {
-      setPanError("Please enter a valid phone number (with country code).")
+      setPanError("Payment phone is not configured. Please contact support.")
       return
     }
     setPanError("")
@@ -338,7 +348,7 @@ export default function ServiceCatalog({
     const reg = normalizeRegistration(ownerHistoryRegistration)
     if (!reg) return
     if (!guestPhoneValid) {
-      setOwnerHistoryError("Please enter a valid phone number (with country code).")
+      setOwnerHistoryError("Payment phone is not configured. Please contact support.")
       return
     }
     setOwnerHistoryError("")
@@ -471,30 +481,11 @@ export default function ServiceCatalog({
         <div className="px-4 pb-4">
           <div className="flex items-center justify-between gap-4 pt-2">
             <div className="text-sm text-muted-foreground">Instant RC Download</div>
-            <div className="text-3xl font-bold">₹{rcDisplayPrice}</div>
+            <div className="text-3xl font-bold">{rcDisplayPriceText}</div>
           </div>
           <div className="text-xs text-muted-foreground -mt-1">per download</div>
 
           <div className="mt-4 space-y-4">
-            {!isAuthenticated ? (
-              <div className="space-y-2">
-                <Label htmlFor="guest-phone-pan" className="text-xs font-semibold uppercase tracking-wide">
-                  Mobile Number
-                </Label>
-                <Input
-                  id="guest-phone-pan"
-                  placeholder="+91XXXXXXXXXX"
-                  value={guestPhone}
-                  onChange={(e) => setGuestPhone(e.target.value)}
-                  onFocus={() => {
-                    if (!guestPhone) setGuestPhone("+91")
-                  }}
-                  className="h-11"
-                  autoComplete="tel"
-                  inputMode="tel"
-                />
-              </div>
-            ) : null}
             <div className="space-y-2">
               <Label htmlFor="rc-vrn" className="text-xs font-semibold uppercase tracking-wide">
                 Vehicle Registration Number
@@ -539,12 +530,12 @@ export default function ServiceCatalog({
             </div>
 
             <Button className="w-full h-11" disabled={!normalizeRegistration(rcRegistration)} onClick={handleRcPrimaryAction}>
-              {isAuthenticated ? "Continue" : `Pay ₹${rcDisplayPrice}`}
+              {isAuthenticated ? "Continue" : `Pay ${rcDisplayPriceText}`}
             </Button>
 
             {!isAuthenticated && (
               <Button variant="outline" className="w-full h-11" onClick={() => router.push("/login")}>
-                Login & Pay ₹{rcRegisteredPrice}
+                Login & Pay {rcRegisteredPriceText}
               </Button>
             )}
 
@@ -580,7 +571,7 @@ export default function ServiceCatalog({
         <div className="px-4 pb-4">
           <div className="flex items-center justify-between gap-4 pt-2">
             <div className="text-sm text-muted-foreground">PAN Details</div>
-            <div className="text-3xl font-bold">₹{panDisplayPrice}</div>
+            <div className="text-3xl font-bold">{panDisplayPriceText}</div>
           </div>
           <div className="text-xs text-muted-foreground -mt-1">per PAN data</div>
 
@@ -614,7 +605,6 @@ export default function ServiceCatalog({
                 className="w-full h-11"
                 disabled={
                   !normalizeRegistration(panNumber) ||
-                  !guestPhoneValid ||
                   panLoading ||
                   (Boolean(panFetched) && panFetched === normalizeRegistration(panNumber))
                 }
@@ -628,7 +618,7 @@ export default function ServiceCatalog({
                 disabled={!normalizeRegistration(panNumber) || panLoading || (Boolean(panFetched) && panFetched === normalizeRegistration(panNumber))}
                 onClick={() => void handlePanPayGuest()}
               >
-                {panLoading ? "Starting payment..." : `Pay ₹${panDisplayPrice}`}
+                {panLoading ? "Starting payment..." : `Pay ${panDisplayPriceText}`}
               </Button>
             )}
 
@@ -812,7 +802,7 @@ export default function ServiceCatalog({
         <div className="px-4 pb-4">
           <div className="flex items-center justify-between gap-4 pt-2">
             <div className="text-sm text-muted-foreground">RC to Mobile Number</div>
-            <div className="text-3xl font-bold">₹{rcToMobileDisplayPrice}</div>
+            <div className="text-3xl font-bold">{rcToMobileDisplayPriceText}</div>
           </div>
           <div className="text-xs text-muted-foreground -mt-1">per mobile</div>
 
@@ -851,41 +841,23 @@ export default function ServiceCatalog({
                 }
                 onClick={() => void fetchRcToMobile()}
               >
-                {rcToMobileLoading ? "Fetching..." : `Fetch Mobile (ƒ,1${rcToMobileDisplayPrice})`}
+                {rcToMobileLoading ? "Fetching..." : `Fetch Mobile (${rcToMobileDisplayPriceText})`}
               </Button>
             ) : (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="guest-phone-rc-to-mobile" className="text-xs font-semibold uppercase tracking-wide">
-                    Mobile Number
-                  </Label>
-                  <Input
-                    id="guest-phone-rc-to-mobile"
-                    placeholder="+91XXXXXXXXXX"
-                    value={guestPhone}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                    onFocus={() => {
-                      if (!guestPhone) setGuestPhone("+91")
-                    }}
-                    className="h-11"
-                    autoComplete="tel"
-                    inputMode="tel"
-                  />
-                </div>
                 <Button
                   className="w-full h-11"
                   disabled={
                     !normalizeRegistration(rcToMobileRegistration) ||
-                    !guestPhoneValid ||
                     rcToMobileLoading ||
                     (Boolean(rcToMobileFetchedReg) && rcToMobileFetchedReg === normalizeRegistration(rcToMobileRegistration))
                   }
                   onClick={() => void handleRcToMobilePayGuest()}
                 >
-                  {rcToMobileLoading ? "Starting payment..." : `Pay ƒ,1${rcToMobileDisplayPrice}`}
+                  {rcToMobileLoading ? "Starting payment..." : `Pay ${rcToMobileDisplayPriceText}`}
                 </Button>
                 <Button variant="outline" className="w-full h-11" onClick={() => router.push("/login")}>
-                  Login & Pay ƒ,1{rcToMobileRegisteredPrice}
+                  Login & Pay {rcToMobileRegisteredPriceText}
                 </Button>
               </>
             )}
@@ -947,7 +919,7 @@ export default function ServiceCatalog({
         <div className="px-4 pb-4">
           <div className="flex items-center justify-between gap-4 pt-2">
             <div className="text-sm text-muted-foreground">RC Owner History</div>
-            <div className="text-3xl font-bold">₹{ownerHistoryDisplayPrice}</div>
+            <div className="text-3xl font-bold">{ownerHistoryDisplayPriceText}</div>
           </div>
           <div className="text-xs text-muted-foreground -mt-1">per report</div>
 
@@ -987,42 +959,24 @@ export default function ServiceCatalog({
                 }
                 onClick={() => void fetchOwnerHistory()}
               >
-                {ownerHistoryLoading ? "Fetching..." : `Fetch Owner History (ƒ,1${ownerHistoryDisplayPrice})`}
+                {ownerHistoryLoading ? "Fetching..." : `Fetch Owner History (${ownerHistoryDisplayPriceText})`}
               </Button>
             ) : (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="guest-phone-owner-history" className="text-xs font-semibold uppercase tracking-wide">
-                    Mobile Number
-                  </Label>
-                  <Input
-                    id="guest-phone-owner-history"
-                    placeholder="+91XXXXXXXXXX"
-                    value={guestPhone}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                    onFocus={() => {
-                      if (!guestPhone) setGuestPhone("+91")
-                    }}
-                    className="h-11"
-                    autoComplete="tel"
-                    inputMode="tel"
-                  />
-                </div>
                 <Button
                   className="w-full h-11"
                   disabled={
                     !normalizeRegistration(ownerHistoryRegistration) ||
-                    !guestPhoneValid ||
                     ownerHistoryLoading ||
                     (Boolean(ownerHistoryFetchedReg) &&
                       ownerHistoryFetchedReg === normalizeRegistration(ownerHistoryRegistration))
                   }
                   onClick={() => void handleOwnerHistoryPayGuest()}
                 >
-                  {ownerHistoryLoading ? "Starting payment..." : `Pay ƒ,1${ownerHistoryDisplayPrice}`}
+                  {ownerHistoryLoading ? "Starting payment..." : `Pay ${ownerHistoryDisplayPriceText}`}
                 </Button>
                 <Button variant="outline" className="w-full h-11" onClick={() => router.push("/login")}>
-                  Login & Pay ƒ,1{ownerHistoryRegisteredPrice}
+                  Login & Pay {ownerHistoryRegisteredPriceText}
                 </Button>
               </>
             )}

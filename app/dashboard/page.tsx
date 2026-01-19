@@ -768,7 +768,7 @@ export default function DashboardPage() {
 
             <div
               ref={servicePanelRef}
-              className={cn(mobileOpenServiceId ? "" : "hidden", "lg:block")}
+              className={cn(mobileOpenServiceId ? "" : "hidden", "lg:block lg:col-span-2 order-2 lg:order-2")}
             >
             {activeService === "rc_download" ? (
               <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
