@@ -118,6 +118,19 @@ function PaymentSuccessContent() {
     }
   }, [registration, transactionId])
 
+  useEffect(() => {
+    if (!rcData) return
+
+    const timeoutDuration = isAuthenticated ? 30_000 : 120_000
+    const timeoutId = window.setTimeout(() => {
+      if (downloading) return
+      setRcData(null)
+      setRcError("Session timed out. Please try again.")
+    }, timeoutDuration)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [rcData, downloading, isAuthenticated])
+
   const captureCombinedCanvas = async (scale = 2) => {
     const element = document.getElementById("rc-combined-capture")
     if (!element) throw new Error("RC capture element not found")
