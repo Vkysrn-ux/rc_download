@@ -21,6 +21,7 @@ import { RCDocumentTemplate } from "@/components/rc-document-template"
 import { RCDocumentPairPreview } from "@/components/rc-document-pair"
 import VirtualRcTemplate from "@/components/virtual-rc"
 import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
+import ServiceCatalog from "@/components/service-catalog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -128,7 +129,7 @@ export default function DashboardPage() {
       setRcToMobileData(json?.data ?? null)
       setRcToMobileFetchedReg(reg)
       setRcToMobileLookup(reg)
-      void refreshUser().catch(() => {})
+      void refreshUser().catch(() => { })
     } catch (e: any) {
       setRcToMobileError(e?.message || "RC-to-mobile lookup failed")
     } finally {
@@ -152,7 +153,7 @@ export default function DashboardPage() {
       setPanData(json?.data ?? null)
       setPanFetched(pan)
       setPanLookup(pan)
-      void refreshUser().catch(() => {})
+      void refreshUser().catch(() => { })
     } catch (e: any) {
       setPanError(e?.message || "PAN lookup failed")
     } finally {
@@ -176,7 +177,7 @@ export default function DashboardPage() {
       setOwnerHistoryData(json?.data ?? null)
       setOwnerHistoryFetchedReg(reg)
       setOwnerHistoryLookup(reg)
-      void refreshUser().catch(() => {})
+      void refreshUser().catch(() => { })
     } catch (e: any) {
       setOwnerHistoryError(e?.message || "Owner history lookup failed")
     } finally {
@@ -246,7 +247,7 @@ export default function DashboardPage() {
   if (!isAuthenticated || !user || isAdmin) return null
 
   const handleLogout = () => {
-    void logout().catch(() => {})
+    void logout().catch(() => { })
     router.push("/")
   }
 
@@ -477,7 +478,7 @@ export default function DashboardPage() {
       }
 
       setRcData(payload.data)
-      void refreshUser().catch(() => {})
+      void refreshUser().catch(() => { })
     })
 
     source.addEventListener("not_found", (event) => {
@@ -605,84 +606,12 @@ export default function DashboardPage() {
             <p className="text-sm sm:text-lg text-muted-foreground">Manage your wallet and download RC documents</p>
           </div>
 
-          <div className="grid gap-4 lg:hidden">
-            {[
-              {
-                id: "rc_download" as const,
-                title: "RC Download",
-                subtitle: `${formatInr(REGISTERED_RC_DOWNLOAD_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} via wallet`,
-                icon: Zap,
-                iconClassName: "bg-blue-50 text-primary",
-              },
-              {
-                id: "pan_details" as const,
-                title: "PAN Details",
-                subtitle: `${formatInr(REGISTERED_PAN_DETAILS_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} via wallet`,
-                icon: IdCard,
-                iconClassName: "bg-emerald-50 text-emerald-700",
-              },
-              {
-                id: "rc_to_mobile" as const,
-                title: "RC to Mobile Number",
-                subtitle: `${formatInr(REGISTERED_RC_TO_MOBILE_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} via wallet`,
-                icon: Smartphone,
-                iconClassName: "bg-emerald-50 text-emerald-700",
-              },
-              {
-                id: "rc_owner_history" as const,
-                title: "RC Owner History",
-                subtitle: `${formatInr(REGISTERED_RC_OWNER_HISTORY_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} via wallet`,
-                icon: FileClock,
-                iconClassName: "bg-purple-50 text-purple-700",
-              },
-            ].map((service) => {
-              const Icon = service.icon
-              const isOpen = mobileOpenServiceId === service.id
-              return (
-                <button
-                  key={service.id}
-                  type="button"
-                  onClick={() => {
-                    if (isOpen) {
-                      setMobileOpenServiceId(null)
-                      return
-                    }
-                    setActiveService(service.id)
-                    setMobileOpenServiceId(service.id)
-                    requestAnimationFrame(() => servicePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))
-                  }}
-                  className={cn(
-                    "w-full rounded-xl border-2 bg-white text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isOpen ? "border-primary/60 shadow-sm" : "border-primary/20 hover:border-primary/40",
-                  )}
-                >
-                  <div className="px-4 py-4 flex items-center gap-3">
-                    <div className={cn("p-2 rounded-lg shrink-0", service.iconClassName)}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-semibold leading-tight break-words whitespace-normal">{service.title}</div>
-                          <div className="text-xs text-muted-foreground break-words whitespace-normal">{service.subtitle}</div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          <div className="text-[10px] text-muted-foreground hidden sm:block">
-                            {isOpen ? "Click to Collapse" : "Click to Expand"}
-                          </div>
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 text-muted-foreground transition-transform",
-                              isOpen ? "rotate-180" : "",
-                            )}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
+          <div className="lg:hidden">
+            <ServiceCatalog
+              rcRegistration={downloadRegistration}
+              onRcRegistrationChange={setDownloadRegistration}
+              onRcPay={startDownloadFlow}
+            />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
@@ -768,279 +697,279 @@ export default function DashboardPage() {
 
             <div
               ref={servicePanelRef}
-              className={cn(mobileOpenServiceId ? "" : "hidden", "lg:block lg:col-span-2 order-2 lg:order-2")}
+              className="hidden lg:block lg:col-span-2 order-2 lg:order-2"
             >
-            {activeService === "rc_download" ? (
-              <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="text-xl">Download RC</CardTitle>
-                  <CardDescription>Fetch RC details and download instantly</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {downloadError ? <div className="text-sm text-destructive">{downloadError}</div> : null}
+              {activeService === "rc_download" ? (
+                <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="text-xl">Download RC</CardTitle>
+                    <CardDescription>Fetch RC details and download instantly</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {downloadError ? <div className="text-sm text-destructive">{downloadError}</div> : null}
 
-                {rcData ? (
-                  <div className="space-y-3">
-                    <div className="rounded-xl border bg-white p-3">
-                      {resultView === "mparivahan" ? (
-                        <div className="flex justify-center">
-                          <div className="overflow-x-auto">
-                            <VirtualRcTemplate
-                              data={rcData}
-                              id="rc-virtual-preview-dashboard-full"
-                              showReturnButton
-                              returnHref="/"
-                              returnLabel="Return to Home"
-                            />
+                    {rcData ? (
+                      <div className="space-y-3">
+                        <div className="rounded-xl border bg-white p-3">
+                          {resultView === "mparivahan" ? (
+                            <div className="flex justify-center">
+                              <div className="overflow-x-auto">
+                                <VirtualRcTemplate
+                                  data={rcData}
+                                  id="rc-virtual-preview-dashboard-full"
+                                  showReturnButton
+                                  returnHref="/"
+                                  returnLabel="Return to Home"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="w-full overflow-hidden">
+                                <RCDocumentPairPreview data={rcData} />
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {downloadFileError ? <div className="text-sm text-destructive">{downloadFileError}</div> : null}
+
+                        <div className="grid gap-3 sm:grid-cols-4">
+                          <Button type="button" size="lg" onClick={handleDownloadPng} disabled={downloading}>
+                            <FileImage className="h-5 w-5 mr-2" />
+                            {downloading && downloadType === "png" ? "Generating..." : "Download PNG"}
+                          </Button>
+                          <Button type="button" size="lg" onClick={handleDownloadPdf} disabled={downloading}>
+                            <FileText className="h-5 w-5 mr-2" />
+                            {downloading && downloadType === "pdf" ? "Generating..." : "Download PDF"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={resultView === "mparivahan" ? "default" : "outline"}
+                            className={resultView === "mparivahan" ? "" : "bg-transparent"}
+                            size="lg"
+                            onClick={() => setResultView((prev) => (prev === "mparivahan" ? "documents" : "mparivahan"))}
+                            disabled={downloading}
+                          >
+                            <Smartphone className="h-5 w-5 mr-2" />
+                            {resultView === "mparivahan" ? "Show Documents" : "mParivahan"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="bg-transparent"
+                            size="lg"
+                            onClick={resetDownloadCard}
+                            disabled={downloading}
+                          >
+                            New Search
+                          </Button>
+                        </div>
+
+                        <div aria-hidden="true" className="pointer-events-none" style={{ position: "fixed", left: 0, top: 0, visibility: "hidden" }}>
+                          <div id="rc-dashboard-capture" className="inline-flex bg-white">
+                            <RCDocumentTemplate data={rcData} side="front" id="rc-front-dashboard-capture" />
+                            <RCDocumentTemplate data={rcData} side="back" id="rc-back-dashboard-capture" />
                           </div>
                         </div>
-                      ) : (
-                        <>
-                        <div className="w-full overflow-hidden">
-                          <RCDocumentPairPreview data={rcData} />
-                        </div>
-                        </>
-                      )}
-                    </div>
 
-                    {downloadFileError ? <div className="text-sm text-destructive">{downloadFileError}</div> : null}
-
-                    <div className="grid gap-3 sm:grid-cols-4">
-                      <Button type="button" size="lg" onClick={handleDownloadPng} disabled={downloading}>
-                        <FileImage className="h-5 w-5 mr-2" />
-                        {downloading && downloadType === "png" ? "Generating..." : "Download PNG"}
-                      </Button>
-                      <Button type="button" size="lg" onClick={handleDownloadPdf} disabled={downloading}>
-                        <FileText className="h-5 w-5 mr-2" />
-                        {downloading && downloadType === "pdf" ? "Generating..." : "Download PDF"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={resultView === "mparivahan" ? "default" : "outline"}
-                        className={resultView === "mparivahan" ? "" : "bg-transparent"}
-                        size="lg"
-                        onClick={() => setResultView((prev) => (prev === "mparivahan" ? "documents" : "mparivahan"))}
-                        disabled={downloading}
-                      >
-                        <Smartphone className="h-5 w-5 mr-2" />
-                        {resultView === "mparivahan" ? "Show Documents" : "mParivahan"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="bg-transparent"
-                        size="lg"
-                        onClick={resetDownloadCard}
-                        disabled={downloading}
-                      >
-                        New Search
-                      </Button>
-                    </div>
-
-                    <div aria-hidden="true" className="pointer-events-none" style={{ position: "fixed", left: 0, top: 0, visibility: "hidden" }}>
-                      <div id="rc-dashboard-capture" className="inline-flex bg-white">
-                        <RCDocumentTemplate data={rcData} side="front" id="rc-front-dashboard-capture" />
-                        <RCDocumentTemplate data={rcData} side="back" id="rc-back-dashboard-capture" />
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="dashboard-registration" className="sr-only">
+                            Registration Number
+                          </Label>
+                          <Input
+                            id="dashboard-registration"
+                            type="text"
+                            placeholder="ENTER VEHICLE NUMBER (E.G., MH12AB1234)"
+                            value={downloadRegistration}
+                            onChange={(e) => setDownloadRegistration(e.target.value.toUpperCase())}
+                            className="h-11 text-center font-mono tracking-widest"
+                            autoComplete="off"
+                            inputMode="text"
+                          />
+                        </div>
 
-                  </div>
-                ) : (
-                  <>
+                        <div className="rounded-xl border bg-white p-3">
+                          <div className="flex items-start gap-3">
+                            <Checkbox
+                              id="dashboard-terms"
+                              checked={acceptedTerms}
+                              onCheckedChange={(value) => setAcceptedTerms(value === true)}
+                              disabled={fetchingRc}
+                            />
+                            <div className="space-y-1">
+                              <Label htmlFor="dashboard-terms" className="font-normal leading-relaxed">
+                                I agree to the Terms & Conditions.
+                              </Label>
+                              <p className="text-xs text-muted-foreground">This is virtual RC only for references not original.</p>
+                              <Link href="/terms" className="text-xs underline text-muted-foreground">
+                                View Terms
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Button
+                          className="w-full justify-start h-11 sm:h-12 text-sm sm:text-base"
+                          size="lg"
+                          onClick={startDownloadFlow}
+                          disabled={!downloadRegistration || !acceptedTerms || fetchingRc}
+                        >
+                          <Search className="h-5 w-5 mr-3" />
+                          {fetchingRc ? "Fetching..." : "Fetch RC Details"}
+                        </Button>
+
+                        {(fetchingRc || apiSteps) && <RcApiProgressChecklist active={fetchingRc} steps={apiSteps} />}
+
+                        <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                          Wallet users are charged only after a successful RC fetch.
+                        </div>
+                      </>
+                    )}
+
+                  </CardContent>
+                </Card>
+              ) : activeService === "pan_details" ? (
+                <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="text-xl">PAN Details</CardTitle>
+                    <CardDescription>Fetch PAN holder details</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="dashboard-registration" className="sr-only">
-                        Registration Number
+                      <Label htmlFor="dashboard-pan" className="text-sm font-medium">
+                        PAN Number
                       </Label>
                       <Input
-                        id="dashboard-registration"
+                        id="dashboard-pan"
                         type="text"
-                        placeholder="ENTER VEHICLE NUMBER (E.G., MH12AB1234)"
-                        value={downloadRegistration}
-                        onChange={(e) => setDownloadRegistration(e.target.value.toUpperCase())}
+                        placeholder="ABCDE1234F"
+                        value={panLookup}
+                        onChange={(e) => {
+                          if (panData) return
+                          setPanLookup(e.target.value.toUpperCase())
+                        }}
                         className="h-11 text-center font-mono tracking-widest"
                         autoComplete="off"
                         inputMode="text"
+                        disabled={panLoading || Boolean(panData)}
                       />
                     </div>
 
-                    <div className="rounded-xl border bg-white p-3">
-                      <div className="flex items-start gap-3">
-                          <Checkbox
-                          id="dashboard-terms"
-                          checked={acceptedTerms}
-                          onCheckedChange={(value) => setAcceptedTerms(value === true)}
-                          disabled={fetchingRc}
-                        />
-                        <div className="space-y-1">
-                          <Label htmlFor="dashboard-terms" className="font-normal leading-relaxed">
-                            I agree to the Terms & Conditions.
-                          </Label>
-                          <p className="text-xs text-muted-foreground">This is virtual RC only for references not original.</p>
-                          <Link href="/terms" className="text-xs underline text-muted-foreground">
-                            View Terms
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
+                    {panError ? <div className="text-sm text-destructive">{panError}</div> : null}
 
-                    <Button
-                      className="w-full justify-start h-11 sm:h-12 text-sm sm:text-base"
-                      size="lg"
-                      onClick={startDownloadFlow}
-                      disabled={!downloadRegistration || !acceptedTerms || fetchingRc}
-                    >
-                      <Search className="h-5 w-5 mr-3" />
-                      {fetchingRc ? "Fetching..." : "Fetch RC Details"}
-                    </Button>
+                    {panData ? (
+                      <Button className="w-full h-11 sm:h-12" size="lg" variant="outline" onClick={resetPanCard}>
+                        Clear
+                      </Button>
+                    ) : (
+                      <Button
+                        className="w-full h-11 sm:h-12"
+                        size="lg"
+                        onClick={fetchPanDetails}
+                        disabled={!panLookup || panLoading || (Boolean(panFetched) && panFetched === normalizeRegistration(panLookup))}
+                      >
+                        {panLoading
+                          ? "Fetching..."
+                          : `Fetch PAN Details (${formatInr(REGISTERED_PAN_DETAILS_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`}
+                      </Button>
+                    )}
 
-                    {(fetchingRc || apiSteps) && <RcApiProgressChecklist active={fetchingRc} steps={apiSteps} />}
-
-                    <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-                      Wallet users are charged only after a successful RC fetch.
-                    </div>
-                  </>
-                )}
-
-                </CardContent>
-              </Card>
-            ) : activeService === "pan_details" ? (
-              <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="text-xl">PAN Details</CardTitle>
-                  <CardDescription>Fetch PAN holder details</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="dashboard-pan" className="text-sm font-medium">
-                      PAN Number
-                    </Label>
-                    <Input
-                      id="dashboard-pan"
-                      type="text"
-                      placeholder="ABCDE1234F"
-                      value={panLookup}
-                      onChange={(e) => {
-                        if (panData) return
-                        setPanLookup(e.target.value.toUpperCase())
-                      }}
-                      className="h-11 text-center font-mono tracking-widest"
-                      autoComplete="off"
-                      inputMode="text"
-                      disabled={panLoading || Boolean(panData)}
-                    />
-                  </div>
-
-                  {panError ? <div className="text-sm text-destructive">{panError}</div> : null}
-
-                  {panData ? (
-                    <Button className="w-full h-11 sm:h-12" size="lg" variant="outline" onClick={resetPanCard}>
-                      Clear
-                    </Button>
-                  ) : (
-                    <Button
-                      className="w-full h-11 sm:h-12"
-                      size="lg"
-                      onClick={fetchPanDetails}
-                      disabled={!panLookup || panLoading || (Boolean(panFetched) && panFetched === normalizeRegistration(panLookup))}
-                    >
-                      {panLoading
-                        ? "Fetching..."
-                        : `Fetch PAN Details (${formatInr(REGISTERED_PAN_DETAILS_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`}
-                    </Button>
-                  )}
-
-                  {panData ? (
-                    <div className="rounded-lg border bg-muted/20 p-3">
-                      <div className="text-sm font-semibold mb-2">Result</div>
-                      {(() => {
-                        const root = panData as any
-                        const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
-                        const formatValue = (value: unknown): string => {
-                          if (value === null || value === undefined) return ""
-                          if (typeof value === "string") return value.trim()
-                          if (typeof value === "number" || typeof value === "boolean") return String(value)
-                          if (Array.isArray(value)) return value.map(formatValue).filter(Boolean).join(", ")
-                          if (typeof value === "object") {
-                            const obj = value as Record<string, unknown>
-                            const addressKeys = [
-                              "house",
-                              "house_no",
-                              "houseNo",
-                              "door_no",
-                              "doorNo",
-                              "building",
-                              "street",
-                              "locality",
-                              "area",
-                              "landmark",
-                              "city",
-                              "district",
-                              "state",
-                              "pincode",
-                              "pin_code",
-                              "postal_code",
-                              "country",
-                            ]
-                            const parts = addressKeys.map((k) => formatValue(obj[k])).filter(Boolean)
-                            if (parts.length) return parts.join(", ")
-                            try {
-                              return JSON.stringify(obj)
-                            } catch {
-                              return ""
+                    {panData ? (
+                      <div className="rounded-lg border bg-muted/20 p-3">
+                        <div className="text-sm font-semibold mb-2">Result</div>
+                        {(() => {
+                          const root = panData as any
+                          const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
+                          const formatValue = (value: unknown): string => {
+                            if (value === null || value === undefined) return ""
+                            if (typeof value === "string") return value.trim()
+                            if (typeof value === "number" || typeof value === "boolean") return String(value)
+                            if (Array.isArray(value)) return value.map(formatValue).filter(Boolean).join(", ")
+                            if (typeof value === "object") {
+                              const obj = value as Record<string, unknown>
+                              const addressKeys = [
+                                "house",
+                                "house_no",
+                                "houseNo",
+                                "door_no",
+                                "doorNo",
+                                "building",
+                                "street",
+                                "locality",
+                                "area",
+                                "landmark",
+                                "city",
+                                "district",
+                                "state",
+                                "pincode",
+                                "pin_code",
+                                "postal_code",
+                                "country",
+                              ]
+                              const parts = addressKeys.map((k) => formatValue(obj[k])).filter(Boolean)
+                              if (parts.length) return parts.join(", ")
+                              try {
+                                return JSON.stringify(obj)
+                              } catch {
+                                return ""
+                              }
                             }
+                            return ""
                           }
-                          return ""
-                        }
 
-                        const deepFindString = (value: unknown, keyMatchers: Array<(key: string) => boolean>): string => {
-                          const seen = new Set<unknown>()
-                          const walk = (node: unknown): string => {
-                            if (!node || typeof node !== "object") return ""
-                            if (seen.has(node)) return ""
-                            seen.add(node)
-                            if (Array.isArray(node)) {
-                              for (const item of node) {
-                                const found = walk(item)
+                          const deepFindString = (value: unknown, keyMatchers: Array<(key: string) => boolean>): string => {
+                            const seen = new Set<unknown>()
+                            const walk = (node: unknown): string => {
+                              if (!node || typeof node !== "object") return ""
+                              if (seen.has(node)) return ""
+                              seen.add(node)
+                              if (Array.isArray(node)) {
+                                for (const item of node) {
+                                  const found = walk(item)
+                                  if (found) return found
+                                }
+                                return ""
+                              }
+                              const obj = node as Record<string, unknown>
+                              for (const [key, entry] of Object.entries(obj)) {
+                                if (keyMatchers.some((m) => m(key))) {
+                                  const val = formatValue(entry)
+                                  if (val) return val
+                                }
+                              }
+                              for (const entry of Object.values(obj)) {
+                                const found = walk(entry)
                                 if (found) return found
                               }
                               return ""
                             }
-                            const obj = node as Record<string, unknown>
-                            for (const [key, entry] of Object.entries(obj)) {
-                              if (keyMatchers.some((m) => m(key))) {
-                                const val = formatValue(entry)
-                                if (val) return val
-                              }
-                            }
-                            for (const entry of Object.values(obj)) {
-                              const found = walk(entry)
-                              if (found) return found
-                            }
-                            return ""
+                            return walk(value)
                           }
-                          return walk(value)
-                        }
-                        const formatDate = (value: string) => {
-                          const text = (value || "").trim()
-                          if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-                            const [yyyy, mm, dd] = text.split("-")
-                            return `${dd}-${mm}-${yyyy}`
+                          const formatDate = (value: string) => {
+                            const text = (value || "").trim()
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+                              const [yyyy, mm, dd] = text.split("-")
+                              return `${dd}-${mm}-${yyyy}`
+                            }
+                            return text
                           }
-                          return text
-                        }
 
-                        const nameProvided = ""
-                        const pan = formatValue(core?.pan_number ?? core?.panNumber ?? core?.pan ?? panLookup)
+                          const nameProvided = ""
+                          const pan = formatValue(core?.pan_number ?? core?.panNumber ?? core?.pan ?? panLookup)
 
-                        const firstName = formatValue(core?.first_name ?? core?.firstName)
-                        const lastName = formatValue(core?.last_name ?? core?.lastName)
-                        const registeredName = formatValue(core?.registered_name ?? core?.registeredName ?? core?.full_name ?? core?.fullName)
-                        const panType = formatValue(core?.pan_type ?? core?.panType ?? core?.type)
-                        const gender = formatValue(core?.gender)
-                        const dob = formatDate(formatValue(core?.date_of_birth ?? core?.dateOfBirth ?? core?.dob))
-                        const maskedAadhaar =
-                          formatValue(
-                            core?.masked_aadhaar ??
+                          const firstName = formatValue(core?.first_name ?? core?.firstName)
+                          const lastName = formatValue(core?.last_name ?? core?.lastName)
+                          const registeredName = formatValue(core?.registered_name ?? core?.registeredName ?? core?.full_name ?? core?.fullName)
+                          const panType = formatValue(core?.pan_type ?? core?.panType ?? core?.type)
+                          const gender = formatValue(core?.gender)
+                          const dob = formatDate(formatValue(core?.date_of_birth ?? core?.dateOfBirth ?? core?.dob))
+                          const maskedAadhaar =
+                            formatValue(
+                              core?.masked_aadhaar ??
                               core?.maskedAadhaar ??
                               core?.masked_aadhaar_number ??
                               core?.maskedAadhaarNumber ??
@@ -1052,134 +981,134 @@ export default function DashboardPage() {
                               core?.aadhaarMasked ??
                               core?.aadhar_masked ??
                               core?.aadharMasked,
-                          ) ||
-                          deepFindString(core, [
-                            (k) => k.toLowerCase().includes("masked_aadhaar"),
-                            (k) => k.toLowerCase().includes("masked_aadhar"),
-                            (k) => k.toLowerCase().includes("aadhaar") && k.toLowerCase().includes("masked"),
-                            (k) => k.toLowerCase().includes("aadhar") && k.toLowerCase().includes("masked"),
-                          ])
-                        const email = formatValue(core?.email ?? core?.email_id ?? core?.emailId)
-                        const mobile = formatValue(core?.mobile_number ?? core?.mobileNumber ?? core?.mobile ?? core?.phone ?? core?.phone_number ?? core?.phoneNumber)
+                            ) ||
+                            deepFindString(core, [
+                              (k) => k.toLowerCase().includes("masked_aadhaar"),
+                              (k) => k.toLowerCase().includes("masked_aadhar"),
+                              (k) => k.toLowerCase().includes("aadhaar") && k.toLowerCase().includes("masked"),
+                              (k) => k.toLowerCase().includes("aadhar") && k.toLowerCase().includes("masked"),
+                            ])
+                          const email = formatValue(core?.email ?? core?.email_id ?? core?.emailId)
+                          const mobile = formatValue(core?.mobile_number ?? core?.mobileNumber ?? core?.mobile ?? core?.phone ?? core?.phone_number ?? core?.phoneNumber)
 
-                        const aadhaarLinkRaw = core?.aadhaar_link ?? core?.aadhaarLink ?? core?.aadhaar_linked ?? core?.aadhaarLinked
-                        const aadhaarLink =
-                          typeof aadhaarLinkRaw === "boolean"
-                            ? aadhaarLinkRaw
-                              ? "True"
-                              : "False"
-                      : formatValue(aadhaarLinkRaw)
+                          const aadhaarLinkRaw = core?.aadhaar_link ?? core?.aadhaarLink ?? core?.aadhaar_linked ?? core?.aadhaarLinked
+                          const aadhaarLink =
+                            typeof aadhaarLinkRaw === "boolean"
+                              ? aadhaarLinkRaw
+                                ? "True"
+                                : "False"
+                              : formatValue(aadhaarLinkRaw)
 
-                        const address = formatValue(core?.address ?? core?.full_address ?? core?.fullAddress)
-                        const panRefId = formatValue(
-                          core?.pan_ref_id ??
+                          const address = formatValue(core?.address ?? core?.full_address ?? core?.fullAddress)
+                          const panRefId = formatValue(
+                            core?.pan_ref_id ??
                             core?.panRefId ??
                             core?.reference_id ??
                             core?.referenceId ??
                             core?.verification_id ??
                             core?.verificationId,
-                        )
-                        const status = formatValue(core?.status ?? core?.pan_status ?? core?.panStatus ?? core?.message_code ?? core?.messageCode)
-                        const message = formatValue(core?.message ?? core?.result_message ?? core?.resultMessage ?? core?.remarks)
-                        const nameOnCard = formatValue(
-                          core?.name_on_pan_card ?? core?.nameOnPanCard ?? core?.name_pan_card ?? core?.namePanCard,
-                        )
+                          )
+                          const status = formatValue(core?.status ?? core?.pan_status ?? core?.panStatus ?? core?.message_code ?? core?.messageCode)
+                          const message = formatValue(core?.message ?? core?.result_message ?? core?.resultMessage ?? core?.remarks)
+                          const nameOnCard = formatValue(
+                            core?.name_on_pan_card ?? core?.nameOnPanCard ?? core?.name_pan_card ?? core?.namePanCard,
+                          )
 
-                        const items: Array<{ label: string; value: string }> = [
-                          { label: "Name Pan Card", value: nameOnCard || "-" },
-                          { label: "PAN", value: pan || "-" },
-                          { label: "First Name", value: firstName || "-" },
-                          { label: "Last Name", value: lastName || "-" },
-                          { label: "Registered Name", value: registeredName || "-" },
-                          { label: "PAN Type", value: panType || "-" },
-                          { label: "Gender", value: gender || "-" },
-                          { label: "Date of Birth", value: dob || "-" },
-                          { label: "Masked Aadhaar", value: maskedAadhaar || "-" },
-                          { label: "Email", value: email || "-" },
-                          { label: "Mobile number", value: mobile || "-" },
-                          { label: "Aadhaar Link", value: aadhaarLink || "-" },
-                          { label: "Address", value: address || "-" },
-                          { label: "PAN Ref. ID", value: panRefId || "-" },
-                          { label: "Status", value: status || "-" },
-                          { label: "Message", value: message || "-" },
-                        ]
+                          const items: Array<{ label: string; value: string }> = [
+                            { label: "Name Pan Card", value: nameOnCard || "-" },
+                            { label: "PAN", value: pan || "-" },
+                            { label: "First Name", value: firstName || "-" },
+                            { label: "Last Name", value: lastName || "-" },
+                            { label: "Registered Name", value: registeredName || "-" },
+                            { label: "PAN Type", value: panType || "-" },
+                            { label: "Gender", value: gender || "-" },
+                            { label: "Date of Birth", value: dob || "-" },
+                            { label: "Masked Aadhaar", value: maskedAadhaar || "-" },
+                            { label: "Email", value: email || "-" },
+                            { label: "Mobile number", value: mobile || "-" },
+                            { label: "Aadhaar Link", value: aadhaarLink || "-" },
+                            { label: "Address", value: address || "-" },
+                            { label: "PAN Ref. ID", value: panRefId || "-" },
+                            { label: "Status", value: status || "-" },
+                            { label: "Message", value: message || "-" },
+                          ]
 
-                        return (
-                          <div className="grid gap-x-10 gap-y-2 sm:grid-cols-2">
-                            {items.map((item) => (
-                              <div
-                                key={item.label}
-                                className="flex items-start justify-between gap-6 border-b border-border/60 py-2"
-                              >
-                                <div className="text-sm text-muted-foreground shrink-0">{item.label}</div>
-                                <div className="text-sm font-semibold text-right break-words whitespace-normal min-w-0">
-                                  {item.value}
+                          return (
+                            <div className="grid gap-x-10 gap-y-2 sm:grid-cols-2">
+                              {items.map((item) => (
+                                <div
+                                  key={item.label}
+                                  className="flex items-start justify-between gap-6 border-b border-border/60 py-2"
+                                >
+                                  <div className="text-sm text-muted-foreground shrink-0">{item.label}</div>
+                                  <div className="text-sm font-semibold text-right break-words whitespace-normal min-w-0">
+                                    {item.value}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      })()}
+                              ))}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ) : activeService === "rc_to_mobile" ? (
+                <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="text-xl">RC to Mobile Number</CardTitle>
+                    <CardDescription>Find linked mobile number</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="dashboard-rc-to-mobile" className="text-sm font-medium">
+                        Vehicle Registration Number
+                      </Label>
+                      <Input
+                        id="dashboard-rc-to-mobile"
+                        type="text"
+                        placeholder="MH12AB1234"
+                        value={rcToMobileLookup}
+                        onChange={(e) => {
+                          if (rcToMobileData) return
+                          setRcToMobileLookup(e.target.value.toUpperCase())
+                        }}
+                        className="h-11 text-center font-mono tracking-widest"
+                        autoComplete="off"
+                        inputMode="text"
+                        disabled={rcToMobileLoading || Boolean(rcToMobileData)}
+                      />
                     </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-            ) : activeService === "rc_to_mobile" ? (
-              <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="text-xl">RC to Mobile Number</CardTitle>
-                  <CardDescription>Find linked mobile number</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="dashboard-rc-to-mobile" className="text-sm font-medium">
-                      Vehicle Registration Number
-                    </Label>
-                    <Input
-                      id="dashboard-rc-to-mobile"
-                      type="text"
-                      placeholder="MH12AB1234"
-                      value={rcToMobileLookup}
-                      onChange={(e) => {
-                        if (rcToMobileData) return
-                        setRcToMobileLookup(e.target.value.toUpperCase())
-                      }}
-                      className="h-11 text-center font-mono tracking-widest"
-                      autoComplete="off"
-                      inputMode="text"
-                      disabled={rcToMobileLoading || Boolean(rcToMobileData)}
-                    />
-                  </div>
 
-                  {rcToMobileError ? <div className="text-sm text-destructive">{rcToMobileError}</div> : null}
+                    {rcToMobileError ? <div className="text-sm text-destructive">{rcToMobileError}</div> : null}
 
-                  {rcToMobileData ? (
-                    <Button className="w-full h-11 sm:h-12" size="lg" variant="outline" onClick={resetRcToMobileCard}>
-                      Clear
-                    </Button>
-                  ) : (
-                    <Button
-                      className="w-full h-11 sm:h-12"
-                      size="lg"
-                      onClick={fetchRcToMobile}
-                      disabled={!rcToMobileLookup || rcToMobileLoading || (Boolean(rcToMobileFetchedReg) && rcToMobileFetchedReg === normalizeRegistration(rcToMobileLookup))}
-                    >
-                      {rcToMobileLoading
-                        ? "Fetching..."
-                        : `Fetch Mobile (${formatInr(REGISTERED_RC_TO_MOBILE_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`}
-                    </Button>
-                  )}
+                    {rcToMobileData ? (
+                      <Button className="w-full h-11 sm:h-12" size="lg" variant="outline" onClick={resetRcToMobileCard}>
+                        Clear
+                      </Button>
+                    ) : (
+                      <Button
+                        className="w-full h-11 sm:h-12"
+                        size="lg"
+                        onClick={fetchRcToMobile}
+                        disabled={!rcToMobileLookup || rcToMobileLoading || (Boolean(rcToMobileFetchedReg) && rcToMobileFetchedReg === normalizeRegistration(rcToMobileLookup))}
+                      >
+                        {rcToMobileLoading
+                          ? "Fetching..."
+                          : `Fetch Mobile (${formatInr(REGISTERED_RC_TO_MOBILE_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`}
+                      </Button>
+                    )}
 
-                  {rcToMobileData ? (
-                    <div className="rounded-lg border bg-muted/20 p-3">
-                      <div className="text-sm font-semibold mb-2">Result</div>
-                      {(() => {
-                        const root = rcToMobileData as any
-                        const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
-                        const rcNumber = String(core?.rc_number ?? core?.rcNumber ?? core?.registration_number ?? core?.registrationNumber ?? rcToMobileLookup ?? "")
-                        const mobile =
-                          String(
-                            core?.mobile_number ??
+                    {rcToMobileData ? (
+                      <div className="rounded-lg border bg-muted/20 p-3">
+                        <div className="text-sm font-semibold mb-2">Result</div>
+                        {(() => {
+                          const root = rcToMobileData as any
+                          const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
+                          const rcNumber = String(core?.rc_number ?? core?.rcNumber ?? core?.registration_number ?? core?.registrationNumber ?? rcToMobileLookup ?? "")
+                          const mobile =
+                            String(
+                              core?.mobile_number ??
                               core?.mobileNumber ??
                               core?.mobile ??
                               core?.phone ??
@@ -1188,115 +1117,115 @@ export default function DashboardPage() {
                               core?.linked_mobile ??
                               core?.linkedMobile ??
                               "",
-                          ) || "-"
+                            ) || "-"
 
-                        const items: Array<{ label: string; value: string }> = [
-                          { label: "RC Number", value: rcNumber || "-" },
-                          { label: "Mobile Number", value: mobile },
-                        ]
+                          const items: Array<{ label: string; value: string }> = [
+                            { label: "RC Number", value: rcNumber || "-" },
+                            { label: "Mobile Number", value: mobile },
+                          ]
 
-                        return (
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            {items.map((item) => (
-                              <div key={item.label} className="rounded-md border bg-white p-3">
-                                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                  {item.label}
+                          return (
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              {items.map((item) => (
+                                <div key={item.label} className="rounded-md border bg-white p-3">
+                                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {item.label}
+                                  </div>
+                                  <div className="mt-1 text-sm font-semibold break-words whitespace-normal">{item.value}</div>
                                 </div>
-                                <div className="mt-1 text-sm font-semibold break-words whitespace-normal">{item.value}</div>
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      })()}
+                              ))}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="text-xl">RC Owner History</CardTitle>
+                    <CardDescription>Fetch owner transfer & history report</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="dashboard-owner-history" className="text-sm font-medium">
+                        Vehicle Registration Number
+                      </Label>
+                      <Input
+                        id="dashboard-owner-history"
+                        type="text"
+                        placeholder="MH12AB1234"
+                        value={ownerHistoryLookup}
+                        onChange={(e) => {
+                          if (ownerHistoryData) return
+                          setOwnerHistoryLookup(e.target.value.toUpperCase())
+                        }}
+                        className="h-11 text-center font-mono tracking-widest"
+                        autoComplete="off"
+                        inputMode="text"
+                        disabled={ownerHistoryLoading || Boolean(ownerHistoryData)}
+                      />
                     </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="order-2 lg:order-2 shadow-md lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="text-xl">RC Owner History</CardTitle>
-                  <CardDescription>Fetch owner transfer & history report</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="dashboard-owner-history" className="text-sm font-medium">
-                      Vehicle Registration Number
-                    </Label>
-                    <Input
-                      id="dashboard-owner-history"
-                      type="text"
-                      placeholder="MH12AB1234"
-                      value={ownerHistoryLookup}
-                      onChange={(e) => {
-                        if (ownerHistoryData) return
-                        setOwnerHistoryLookup(e.target.value.toUpperCase())
-                      }}
-                      className="h-11 text-center font-mono tracking-widest"
-                      autoComplete="off"
-                      inputMode="text"
-                      disabled={ownerHistoryLoading || Boolean(ownerHistoryData)}
-                    />
-                  </div>
 
-                  {ownerHistoryError ? <div className="text-sm text-destructive">{ownerHistoryError}</div> : null}
+                    {ownerHistoryError ? <div className="text-sm text-destructive">{ownerHistoryError}</div> : null}
 
-                  {ownerHistoryData ? (
-                    <Button className="w-full h-11 sm:h-12" size="lg" variant="outline" onClick={resetOwnerHistoryCard}>
-                      Clear
-                    </Button>
-                  ) : (
-                    <Button
-                      className="w-full h-11 sm:h-12"
-                      size="lg"
-                      onClick={fetchOwnerHistory}
-                      disabled={!ownerHistoryLookup || ownerHistoryLoading || (Boolean(ownerHistoryFetchedReg) && ownerHistoryFetchedReg === normalizeRegistration(ownerHistoryLookup))}
-                    >
-                      {ownerHistoryLoading
-                        ? "Fetching..."
-                        : `Fetch Owner History (${formatInr(REGISTERED_RC_OWNER_HISTORY_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`}
-                    </Button>
-                  )}
+                    {ownerHistoryData ? (
+                      <Button className="w-full h-11 sm:h-12" size="lg" variant="outline" onClick={resetOwnerHistoryCard}>
+                        Clear
+                      </Button>
+                    ) : (
+                      <Button
+                        className="w-full h-11 sm:h-12"
+                        size="lg"
+                        onClick={fetchOwnerHistory}
+                        disabled={!ownerHistoryLookup || ownerHistoryLoading || (Boolean(ownerHistoryFetchedReg) && ownerHistoryFetchedReg === normalizeRegistration(ownerHistoryLookup))}
+                      >
+                        {ownerHistoryLoading
+                          ? "Fetching..."
+                          : `Fetch Owner History (${formatInr(REGISTERED_RC_OWNER_HISTORY_PRICE_INR, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`}
+                      </Button>
+                    )}
 
-                  {ownerHistoryData ? (
-                    <div className="rounded-lg border bg-muted/20 p-3">
-                      <div className="text-sm font-semibold mb-2">Result</div>
-                      {(() => {
-                        const root = ownerHistoryData as any
-                        const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
-                        const history = Array.isArray(core?.owner_history) ? core.owner_history : []
-                        const firstHistory = history[0] ?? {}
-                        const rcNumber = String(core?.rc_number ?? core?.rcNumber ?? core?.registration_number ?? core?.registrationNumber ?? "")
-                        const currentOwnerName = String(core?.current_owner_name ?? core?.currentOwnerName ?? "")
-                        const currentOwnerNumber = String(core?.current_owner_number ?? core?.currentOwnerNumber ?? "")
-                        const ownerName = String(firstHistory?.owner_name ?? firstHistory?.ownerName ?? "")
-                        const ownerNumber = String(firstHistory?.owner_number ?? firstHistory?.ownerNumber ?? "")
+                    {ownerHistoryData ? (
+                      <div className="rounded-lg border bg-muted/20 p-3">
+                        <div className="text-sm font-semibold mb-2">Result</div>
+                        {(() => {
+                          const root = ownerHistoryData as any
+                          const core = root?.data ?? root?.result ?? root?.response ?? root ?? {}
+                          const history = Array.isArray(core?.owner_history) ? core.owner_history : []
+                          const firstHistory = history[0] ?? {}
+                          const rcNumber = String(core?.rc_number ?? core?.rcNumber ?? core?.registration_number ?? core?.registrationNumber ?? "")
+                          const currentOwnerName = String(core?.current_owner_name ?? core?.currentOwnerName ?? "")
+                          const currentOwnerNumber = String(core?.current_owner_number ?? core?.currentOwnerNumber ?? "")
+                          const ownerName = String(firstHistory?.owner_name ?? firstHistory?.ownerName ?? "")
+                          const ownerNumber = String(firstHistory?.owner_number ?? firstHistory?.ownerNumber ?? "")
 
-                        const items: Array<{ label: string; value: string }> = [
-                          { label: "RC Number", value: rcNumber || "-" },
-                          { label: "Current Owner Name", value: currentOwnerName || "-" },
-                          { label: "Owner Name", value: ownerName || "-" },
-                          { label: "Owner Number", value: ownerNumber || "-" },
-                        ]
+                          const items: Array<{ label: string; value: string }> = [
+                            { label: "RC Number", value: rcNumber || "-" },
+                            { label: "Current Owner Name", value: currentOwnerName || "-" },
+                            { label: "Owner Name", value: ownerName || "-" },
+                            { label: "Owner Number", value: ownerNumber || "-" },
+                          ]
 
-                        return (
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            {items.map((item) => (
-                              <div key={item.label} className="rounded-md border bg-white p-3">
-                                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                  {item.label}
+                          return (
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              {items.map((item) => (
+                                <div key={item.label} className="rounded-md border bg-white p-3">
+                                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {item.label}
+                                  </div>
+                                  <div className="mt-1 text-sm font-semibold break-words whitespace-normal">{item.value}</div>
                                 </div>
-                                <div className="mt-1 text-sm font-semibold break-words whitespace-normal">{item.value}</div>
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-            )}
+                              ))}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
 
@@ -1338,7 +1267,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   )
 }
