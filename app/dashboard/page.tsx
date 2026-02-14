@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ChevronDown, FileClock, FileImage, FileText, IdCard, LogOut, MessageCircle, Plus, Search, Smartphone, Wallet, WalletCards, Zap } from "lucide-react"
-import html2canvas from "html2canvas"
-import jsPDF from "jspdf"
+
 
 import { useAuth } from "@/lib/auth-context"
 import { formatInr } from "@/lib/format"
@@ -17,9 +16,17 @@ import {
 } from "@/lib/pricing"
 import { cn } from "@/lib/utils"
 import { canvasToPdfImage, getClientPdfSettings } from "@/lib/pdf-client"
-import { RCDocumentTemplate } from "@/components/rc-document-template"
-import { RCDocumentPairPreview } from "@/components/rc-document-pair"
-import VirtualRcTemplate from "@/components/virtual-rc"
+import dynamic from "next/dynamic"
+
+const RCDocumentTemplate = dynamic(
+  () => import("@/components/rc-document-template").then((mod) => mod.RCDocumentTemplate),
+  { ssr: false },
+)
+const RCDocumentPairPreview = dynamic(
+  () => import("@/components/rc-document-pair").then((mod) => mod.RCDocumentPairPreview),
+  { ssr: false },
+)
+const VirtualRcTemplate = dynamic(() => import("@/components/virtual-rc"), { ssr: false })
 import { RcApiProgressChecklist, type RcApiStepStatus } from "@/components/rc-api-progress-checklist"
 import ServiceCatalog from "@/components/service-catalog"
 import { Button } from "@/components/ui/button"
@@ -303,6 +310,7 @@ export default function DashboardPage() {
     body.style.color = "#000000"
 
     try {
+      const html2canvas = (await import("html2canvas")).default
       return await html2canvas(element, {
         scale,
         backgroundColor: "#ffffff",
@@ -361,6 +369,7 @@ export default function DashboardPage() {
       const { dataUrl, jsPdfFormat } = canvasToPdfImage(canvas, settings)
       const pdfHeightMm = Math.round((PDF_COMBINED_WIDTH_MM * canvas.height) / canvas.width * 10) / 10
 
+      const jsPDF = (await import("jspdf")).default
       const pdf = new jsPDF({
         orientation: "landscape",
         unit: "mm",
@@ -416,6 +425,7 @@ export default function DashboardPage() {
     root.style.setProperty("--background", "#ffffff")
     body.style.backgroundColor = "#ffffff"
     try {
+      const html2canvas = (await import("html2canvas")).default
       return await html2canvas(element, { scale, backgroundColor: "#ffffff", useCORS: true, scrollX: 0, scrollY: 0 })
     } finally {
       root.setAttribute("style", originalRootStyle)

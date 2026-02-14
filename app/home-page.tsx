@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,9 +8,13 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { FileText, Wallet, Shield, Zap, CheckCircle2, Clock, Lock } from "lucide-react"
-import VirtualRcTemplate from "@/components/virtual-rc"
-import { useRef } from "react"
-import { RCDocumentPairPreview } from "@/components/rc-document-pair"
+import dynamic from "next/dynamic"
+
+const VirtualRcTemplate = dynamic(() => import("@/components/virtual-rc"), { ssr: false })
+const RCDocumentPairPreview = dynamic(
+  () => import("@/components/rc-document-pair").then((mod) => mod.RCDocumentPairPreview),
+  { ssr: false },
+)
 import Link from "next/link"
 import ServiceCatalog from "@/components/service-catalog"
 
@@ -66,9 +70,9 @@ export default function HomePageClient() {
       // restore getPropertyValue
       if (originalGetPropertyValueRef.current) {
         try {
-          ;(CSSStyleDeclaration.prototype as any).getPropertyValue = originalGetPropertyValueRef.current
+          ; (CSSStyleDeclaration.prototype as any).getPropertyValue = originalGetPropertyValueRef.current
           originalGetPropertyValueRef.current = null
-        } catch {}
+        } catch { }
       }
       return
     }
@@ -223,13 +227,13 @@ export default function HomePageClient() {
                     </div>
                   </div>
                 </div>
-                    <div className="flex items-baseline gap-2 pt-2">
-                      <span className="text-5xl font-bold text-foreground">₹23</span>
-                      <span className="text-lg text-muted-foreground">per download</span>
-                    </div>
+                <div className="flex items-baseline gap-2 pt-2">
+                  <span className="text-5xl font-bold text-foreground">₹23</span>
+                  <span className="text-lg text-muted-foreground">per download</span>
+                </div>
               </CardHeader>
-                  <CardContent>
-                
+              <CardContent>
+
                 <div className="mt-4">
                   <Label htmlFor="guestRegistration" className="text-lg font-bold">Vehicle Registration</Label>
                   <Input
@@ -366,7 +370,7 @@ export default function HomePageClient() {
             </div>
 
             <div className="flex justify-center gap-4 pt-6">
-              
+
             </div>
           </section>
 
@@ -443,7 +447,7 @@ export default function HomePageClient() {
                       }}
                       frontId="home-rc-front"
                       backId="home-rc-back"
-                     />
+                    />
                   </div>
 
                   <div className="rounded-md border p-2 bg-white">
