@@ -4,11 +4,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { Open_Sans } from "next/font/google"
 import Script from "next/script"
 import { AuthProvider } from "@/lib/auth-context"
-import dynamic from "next/dynamic"
-
-const WhatsAppSupportFab = dynamic(() => import("@/components/whatsapp-support-fab"), {
-  ssr: false,
-})
+import WhatsAppSupportFab from "@/components/whatsapp-support-fab"
 import "./globals.css"
 
 export const metadata: Metadata = {

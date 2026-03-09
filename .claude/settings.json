@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vercel env ls)",
+      "Bash(npx vercel link --yes --project rdownload)",
+      "Bash(xargs cat)"
+    ]
+  }
+}

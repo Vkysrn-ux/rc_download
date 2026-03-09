@@ -19,6 +19,36 @@ function normalizeRegistration(value: string) {
   return value.toUpperCase().replace(/\s/g, "")
 }
 
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000
+
+function getSessionTransaction(reg: string): string | null {
+  try {
+    const raw = sessionStorage.getItem(`rc_tx_${reg}`)
+    if (!raw) return null
+    const { transactionId, ts } = JSON.parse(raw)
+    if (Date.now() - ts > SESSION_TTL_MS) { sessionStorage.removeItem(`rc_tx_${reg}`); return null }
+    return transactionId
+  } catch { return null }
+}
+
+function saveSessionTransaction(reg: string, transactionId: string) {
+  try { sessionStorage.setItem(`rc_tx_${reg}`, JSON.stringify({ transactionId, ts: Date.now() })) } catch {}
+}
+
+function getSessionGuestLookup(reg: string): boolean {
+  try {
+    const raw = sessionStorage.getItem(`rc_guest_${reg}`)
+    if (!raw) return false
+    const { ts } = JSON.parse(raw)
+    if (Date.now() - ts > SESSION_TTL_MS) { sessionStorage.removeItem(`rc_guest_${reg}`); return false }
+    return true
+  } catch { return false }
+}
+
+function saveSessionGuestLookup(reg: string) {
+  try { sessionStorage.setItem(`rc_guest_${reg}`, JSON.stringify({ ts: Date.now() })) } catch {}
+}
+
 function DownloadPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -90,6 +120,7 @@ function DownloadPageContent() {
 
       // Wallet users are charged server-side only after a successful lookup (and before any RC data is returned).
       if (payload?.transactionId) {
+        saveSessionTransaction(regNumber, String(payload.transactionId))
         setConfirming(true)
         router.push(
           `/payment/success?registration=${encodeURIComponent(regNumber)}&transactionId=${encodeURIComponent(String(payload.transactionId))}`,
@@ -102,6 +133,7 @@ function DownloadPageContent() {
         return
       }
 
+      saveSessionGuestLookup(regNumber)
       router.push(`/payment/confirm?registration=${encodeURIComponent(regNumber)}&source=upi&guest=true`)
     })
 
@@ -126,7 +158,22 @@ function DownloadPageContent() {
     }
   }
 
-  const handleSearch = () => startLookup(registrationNumber)
+  const handleSearch = () => {
+    const reg = normalizeRegistration(registrationNumber)
+    if (!reg) return
+    // Registered: reuse existing session transaction
+    const existingTxId = getSessionTransaction(reg)
+    if (existingTxId) {
+      router.push(`/payment/success?registration=${encodeURIComponent(reg)}&transactionId=${encodeURIComponent(existingTxId)}`)
+      return
+    }
+    // Guest: already did lookup, skip to payment
+    if (!isAuthenticated && getSessionGuestLookup(reg)) {
+      router.push(`/payment/confirm?registration=${encodeURIComponent(reg)}&source=upi&guest=true`)
+      return
+    }
+    startLookup(reg)
+  }
 
   useEffect(() => {
     const regParam = searchParams.get("registrationNumber") || searchParams.get("registration") || ""

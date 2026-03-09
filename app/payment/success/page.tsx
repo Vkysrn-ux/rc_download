@@ -17,6 +17,17 @@ import { canvasToPdfImage, getClientPdfSettings } from "@/lib/pdf-client"
 
 const PDF_COMBINED_WIDTH_MM = 320
 
+function getSessionRcData(transactionId: string): any | null {
+  try {
+    const raw = sessionStorage.getItem(`rc_data_${transactionId}`)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function saveSessionRcData(transactionId: string, data: any) {
+  try { sessionStorage.setItem(`rc_data_${transactionId}`, JSON.stringify(data)) } catch {}
+}
+
 function PaymentSuccessContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -38,6 +49,15 @@ function PaymentSuccessContent() {
     if (!transactionId) {
       setRcData(null)
       setRcError("Missing transactionId. Please complete payment to view RC.")
+      setRcLoading(false)
+      setApiSteps(null)
+      return
+    }
+
+    // Restore from sessionStorage to avoid re-fetching on refresh
+    const cached = getSessionRcData(transactionId)
+    if (cached) {
+      setRcData(cached)
       setRcLoading(false)
       setApiSteps(null)
       return
@@ -83,7 +103,9 @@ function PaymentSuccessContent() {
 
     source.addEventListener("done", (event) => {
       const payload = JSON.parse((event as MessageEvent).data || "{}")
-      setRcData(payload?.data ?? null)
+      const data = payload?.data ?? null
+      if (data) saveSessionRcData(transactionId, data)
+      setRcData(data)
       setRcLoading(false)
       source.close()
     })
@@ -121,7 +143,7 @@ function PaymentSuccessContent() {
   useEffect(() => {
     if (!rcData) return
 
-    const timeoutDuration = isAuthenticated ? 30_000 : 120_000
+    const timeoutDuration = isAuthenticated ? 10 * 60_000 : 20 * 60_000
     const timeoutId = window.setTimeout(() => {
       if (downloading) return
       setRcData(null)

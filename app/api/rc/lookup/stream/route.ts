@@ -69,21 +69,42 @@ export async function GET(req: Request) {
 
         if (user) {
           try {
-            const charged = await chargeWalletForDownload({
-              userId: user.id,
-              registrationNumber: result.registrationNumber,
-              price: REGISTERED_RC_DOWNLOAD_PRICE_INR,
-              description: `Vehicle RC Download - ${result.registrationNumber}`,
-            })
-            writeEvent(controller, "done", {
-              ok: true,
-              registrationNumber: result.registrationNumber,
-              transactionId: charged.transactionId,
-              walletCharged: true,
-              walletBalance: charged.walletBalance,
-              data: result.data,
-              provider: result.provider,
-            })
+            // Idempotency: reuse an existing completed transaction for this user+registration (within 24h)
+            const existingTxns = await dbQuery<{ id: string }>(
+              "SELECT id FROM transactions WHERE user_id = ? AND registration_number = ? AND type = 'download' AND status = 'completed' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY created_at DESC LIMIT 1",
+              [user.id, result.registrationNumber],
+            )
+            if (existingTxns[0]) {
+              const balances = await dbQuery<{ wallet_balance: string | number }>(
+                "SELECT wallet_balance FROM users WHERE id = ? LIMIT 1",
+                [user.id],
+              )
+              writeEvent(controller, "done", {
+                ok: true,
+                registrationNumber: result.registrationNumber,
+                transactionId: existingTxns[0].id,
+                walletCharged: false,
+                walletBalance: Number(balances[0]?.wallet_balance ?? 0),
+                data: result.data,
+                provider: result.provider,
+              })
+            } else {
+              const charged = await chargeWalletForDownload({
+                userId: user.id,
+                registrationNumber: result.registrationNumber,
+                price: REGISTERED_RC_DOWNLOAD_PRICE_INR,
+                description: `Vehicle RC Download - ${result.registrationNumber}`,
+              })
+              writeEvent(controller, "done", {
+                ok: true,
+                registrationNumber: result.registrationNumber,
+                transactionId: charged.transactionId,
+                walletCharged: true,
+                walletBalance: charged.walletBalance,
+                data: result.data,
+                provider: result.provider,
+              })
+            }
           } catch (error: any) {
             if (error instanceof WalletError) {
               writeEvent(controller, "server_error", { ok: false, error: error.message, status: error.status })
