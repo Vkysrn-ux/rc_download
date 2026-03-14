@@ -46,7 +46,14 @@ export default function ForgotPasswordPage() {
 
     setOtpSent(true)
     if (typeof json?.debugOtp === "string") setOtp(json.debugOtp)
-    setInfo("If an account exists, a reset code has been sent to the email address on file (valid for 10 minutes).")
+
+    const channels: string[] = json?.channels ?? []
+    if (channels.length > 0) {
+      const channelLabels = channels.map((c: string) => c === "whatsapp" ? "WhatsApp" : "email")
+      setInfo(`Reset code sent via ${channelLabels.join(" and ")} (valid for 10 minutes).`)
+    } else {
+      setInfo("If an account exists, a reset code has been sent (valid for 10 minutes).")
+    }
     setSending(false)
   }
 
@@ -127,7 +134,7 @@ export default function ForgotPasswordPage() {
                   inputMode="numeric"
                   placeholder="6-digit code"
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\\D/g, "").slice(0, 6))}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   required
                 />
               </div>

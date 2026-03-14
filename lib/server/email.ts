@@ -35,20 +35,22 @@ export async function sendVerificationEmail(toEmail: string, verifyUrl: string) 
   console.log("[email] Verification email disabled. Link:", verifyUrl, "for", toEmail)
 }
 
-export async function sendPasswordResetOtp(toEmail: string, otp: string) {
+export async function sendPasswordResetOtp(toEmail: string, otp: string): Promise<boolean> {
   const transport = getTransport()
   const subject = "Your RC Download password reset code"
   const text = `Your password reset code is: ${otp}\n\nThis code expires in 10 minutes. If you did not request this, you can ignore this email.`
 
   if (!transport) {
-    console.log("[email] Password reset OTP code:", otp, "for", toEmail)
-    return
+    console.warn("[email] SMTP not configured (missing SMTP_HOST/SMTP_USER/SMTP_PASS). OTP for", toEmail, ":", otp)
+    return false
   }
 
   try {
-    await transport.sendMail({ from: getFrom(), to: toEmail, subject, text })
+    const info = await transport.sendMail({ from: getFrom(), to: toEmail, subject, text })
+    console.log("[email] OTP sent to", toEmail, "messageId:", info.messageId)
+    return true
   } catch (error) {
-    console.error("[email] Failed to send password reset OTP email:", error)
-    console.log("[email] Password reset OTP code (fallback):", otp, "for", toEmail)
+    console.error("[email] Failed to send password reset OTP to", toEmail, ":", error)
+    return false
   }
 }

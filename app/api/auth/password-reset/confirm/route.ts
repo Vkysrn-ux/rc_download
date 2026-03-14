@@ -6,13 +6,13 @@ import { sha256Hex } from "@/lib/server/security"
 
 const ConfirmSchema = z.object({
   identifier: z.string().trim().min(1).max(255),
-  otp: z.string().regex(/^\\d{6}$/),
+  otp: z.string().regex(/^\d{6}$/),
   password: z.string().min(6).max(200),
 })
 
 function getPhoneCandidates(input: string): string[] {
   const trimmed = input.trim()
-  const digits = trimmed.replace(/\\D/g, "")
+  const digits = trimmed.replace(/\D/g, "")
   if (digits.length < 8 || digits.length > 15) return []
   const candidates = [trimmed, digits, `+${digits}`]
   return Array.from(new Set(candidates.filter(Boolean)))
