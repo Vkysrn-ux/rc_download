@@ -8,6 +8,14 @@ import { REGISTERED_RC_DOWNLOAD_PRICE_INR } from "@/lib/pricing"
 
 const LookupSchema = z.object({ registrationNumber: z.string().min(4).max(32) })
 
+function userFacingError(status: number, internalMessage: string): string {
+  if (status === 404) return "Vehicle registration not found. Please check the number and try again."
+  if (status === 503) return "Our servers are temporarily busy. Please try again in a few minutes."
+  if (status === 402) return internalMessage
+  console.error("[rc-lookup]", internalMessage)
+  return "Unable to fetch RC details right now. Please try again later."
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const reg = url.searchParams.get("registrationNumber")
@@ -59,9 +67,10 @@ export async function GET(req: Request) {
     if (error instanceof ExternalApiError) {
       const status =
         error.status === 404 ? 404 : error.status === 503 ? 503 : error.status === 401 || error.status === 403 ? 502 : 502
-      return NextResponse.json({ ok: false, error: error.message }, { status })
+      return NextResponse.json({ ok: false, error: userFacingError(status, error.message) }, { status })
     }
-    return NextResponse.json({ ok: false, error: error?.message || "Lookup failed" }, { status: 500 })
+    console.error("[rc-lookup]", error?.message || "Lookup failed")
+    return NextResponse.json({ ok: false, error: "Unable to fetch RC details right now. Please try again later." }, { status: 500 })
   }
 }
 
@@ -114,8 +123,9 @@ export async function POST(req: Request) {
     if (error instanceof ExternalApiError) {
       const status =
         error.status === 404 ? 404 : error.status === 503 ? 503 : error.status === 401 || error.status === 403 ? 502 : 502
-      return NextResponse.json({ ok: false, error: error.message }, { status })
+      return NextResponse.json({ ok: false, error: userFacingError(status, error.message) }, { status })
     }
-    return NextResponse.json({ ok: false, error: error?.message || "Lookup failed" }, { status: 500 })
+    console.error("[rc-lookup]", error?.message || "Lookup failed")
+    return NextResponse.json({ ok: false, error: "Unable to fetch RC details right now. Please try again later." }, { status: 500 })
   }
 }

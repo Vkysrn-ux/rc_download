@@ -21,7 +21,15 @@ function getPhoneCandidates(input: string): string[] {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null)
   const parsed = ConfirmSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid input" }, { status: 400 })
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.issues.map((i) => i.path.join(".") || i.message)
+    const hint =
+      fieldErrors.includes("otp") ? "Please enter a valid 6-digit code." :
+      fieldErrors.includes("password") ? "Password must be 6–200 characters." :
+      fieldErrors.includes("identifier") ? "Please enter your email or phone number." :
+      "Please check all fields and try again."
+    return NextResponse.json({ ok: false, error: hint }, { status: 400 })
+  }
 
   const identifier = parsed.data.identifier.trim()
   const otp = parsed.data.otp

@@ -7,6 +7,14 @@ function writeEvent(controller: ReadableStreamDefaultController, event: string, 
   controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
 }
 
+function userFacingError(status: number, internalMessage: string): string {
+  if (status === 404) return "Vehicle registration not found. Please check the number and try again."
+  if (status === 503) return "Our servers are temporarily busy. Please try again in a few minutes."
+  if (status === 402) return internalMessage
+  console.error("[rc-view-stream]", internalMessage)
+  return "Unable to fetch RC details right now. Please try again later."
+}
+
 function providerIndexToStepIndex(providerIndex: number) {
   if (providerIndex === 1) return 0
   return 1
@@ -81,9 +89,10 @@ export async function GET(req: Request) {
         if (error instanceof ExternalApiError) {
           const status =
             error.status === 404 ? 404 : error.status === 503 ? 503 : error.status === 401 || error.status === 403 ? 502 : 502
-          writeEvent(controller, "server_error", { ok: false, error: error.message, status })
+          writeEvent(controller, "server_error", { ok: false, error: userFacingError(status, error.message), status })
         } else {
-          writeEvent(controller, "server_error", { ok: false, error: error?.message || "Lookup failed", status: 500 })
+          console.error("[rc-view-stream]", error?.message || "Lookup failed")
+          writeEvent(controller, "server_error", { ok: false, error: "Unable to fetch RC details right now. Please try again later.", status: 500 })
         }
       } finally {
         controller.close()
