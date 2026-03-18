@@ -7,7 +7,9 @@ import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { FileText, LogOut, ArrowLeft, Download, CreditCard, RefreshCw } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { FileText, LogOut, ArrowLeft, Download, CreditCard, RefreshCw, CalendarDays, X } from "lucide-react"
 
 interface Transaction {
   id: string
@@ -34,6 +36,9 @@ export default function AdminPaymentsPage() {
   const [error, setError] = useState("")
 
   const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "failed">("all")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [monthFilter, setMonthFilter] = useState("all")
 
   function extractPhone(desc?: string) {
     if (!desc) return ""
@@ -79,11 +84,49 @@ export default function AdminPaymentsPage() {
     await loadData()
   }
 
-  const totalRevenue = useMemo(() => {
-    return transactions
-      .filter((t) => t.type === "recharge" && t.status === "completed")
-      .reduce((sum, t) => sum + t.amount, 0)
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      // Status filter
+      if (statusFilter !== "all" && t.status !== statusFilter) return false
+
+      const txDate = new Date(t.timestamp)
+
+      // Month filter (format: "2026-03")
+      if (monthFilter !== "all") {
+        const txMonth = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, "0")}`
+        if (txMonth !== monthFilter) return false
+      }
+
+      // Date range filter
+      if (dateFrom) {
+        const from = new Date(dateFrom)
+        from.setHours(0, 0, 0, 0)
+        if (txDate < from) return false
+      }
+      if (dateTo) {
+        const to = new Date(dateTo)
+        to.setHours(23, 59, 59, 999)
+        if (txDate > to) return false
+      }
+
+      return true
+    })
+  }, [transactions, statusFilter, monthFilter, dateFrom, dateTo])
+
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>()
+    transactions.forEach((t) => {
+      const d = new Date(t.timestamp)
+      months.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
+    })
+    return Array.from(months).sort().reverse()
   }, [transactions])
+
+  const totalRevenue = useMemo(() => {
+    return filteredTransactions
+      .filter((t) => t.status === "completed")
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+  }, [filteredTransactions])
 
   if (!isAuthenticated || !user || user.role !== "admin") return null
 
@@ -135,7 +178,7 @@ export default function AdminPaymentsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Transactions</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{transactions.length}</div>
+                <div className="text-3xl font-bold">{filteredTransactions.length}</div>
               </CardContent>
             </Card>
 
@@ -144,7 +187,7 @@ export default function AdminPaymentsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{transactions.filter((t) => t.status === "pending").length}</div>
+                <div className="text-3xl font-bold">{filteredTransactions.filter((t) => t.status === "pending").length}</div>
               </CardContent>
             </Card>
           </div>
@@ -154,26 +197,66 @@ export default function AdminPaymentsPage() {
               <CardTitle className="text-2xl">All Transactions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="mb-4 flex gap-2">
+              {/* Status filter */}
+              <div className="mb-4 flex flex-wrap gap-2">
                 <Button size="sm" variant={statusFilter === "all" ? "default" : "outline"} onClick={() => setStatusFilter("all")}>All</Button>
                 <Button size="sm" variant={statusFilter === "completed" ? "default" : "outline"} onClick={() => setStatusFilter("completed")}>Successful</Button>
                 <Button size="sm" variant={statusFilter === "failed" ? "destructive" : "outline"} onClick={() => setStatusFilter("failed")}>Failed</Button>
-                <div className="ml-auto text-sm text-muted-foreground">Showing {transactions.length} transactions</div>
+                <div className="ml-auto text-sm text-muted-foreground">Showing {filteredTransactions.length} of {transactions.length} transactions</div>
+              </div>
+
+              {/* Date & month filters */}
+              <div className="mb-4 flex flex-wrap items-end gap-3 p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-1.5">
+                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Filters:</span>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground">Month</label>
+                  <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); if (v !== "all") { setDateFrom(""); setDateTo("") } }}>
+                    <SelectTrigger className="w-[160px] h-8 text-sm bg-white">
+                      <SelectValue placeholder="All months" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All months</SelectItem>
+                      {availableMonths.map((m) => {
+                        const [y, mo] = m.split("-")
+                        const label = new Date(Number(y), Number(mo) - 1).toLocaleString("default", { month: "long", year: "numeric" })
+                        return <SelectItem key={m} value={m}>{label}</SelectItem>
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground">From</label>
+                  <Input type="date" className="w-[150px] h-8 text-sm bg-white" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); if (e.target.value) setMonthFilter("all") }} />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground">To</label>
+                  <Input type="date" className="w-[150px] h-8 text-sm bg-white" value={dateTo} onChange={(e) => { setDateTo(e.target.value); if (e.target.value) setMonthFilter("all") }} />
+                </div>
+
+                {(dateFrom || dateTo || monthFilter !== "all") && (
+                  <Button size="sm" variant="ghost" className="h-8" onClick={() => { setDateFrom(""); setDateTo(""); setMonthFilter("all") }}>
+                    <X className="h-3.5 w-3.5 mr-1" /> Clear
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-3">
-                {transactions
-                  .filter((t) => (statusFilter === "all" ? true : t.status === statusFilter))
-                  .map((txn) => (
-                    <Card key={txn.id} className="shadow-sm">
+                {filteredTransactions.map((txn) => (
+                    <Card key={txn.id} className={`shadow-sm border-l-4 ${txn.status === "completed" ? "border-l-green-500" : txn.status === "failed" ? "border-l-red-500" : "border-l-yellow-500"}`}>
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex gap-3 flex-1">
-                            <div className={`p-3 rounded-lg ${txn.type === "recharge" ? "bg-green-100" : "bg-blue-100"}`}>
+                            <div className={`p-3 rounded-lg ${txn.status === "completed" ? "bg-green-100" : txn.status === "failed" ? "bg-red-100" : "bg-yellow-100"}`}>
                               {txn.type === "recharge" ? (
-                                <CreditCard className="h-5 w-5 text-green-600" />
+                                <CreditCard className={`h-5 w-5 ${txn.status === "completed" ? "text-green-600" : txn.status === "failed" ? "text-red-600" : "text-yellow-600"}`} />
                               ) : (
-                                <Download className="h-5 w-5 text-blue-600" />
+                                <Download className={`h-5 w-5 ${txn.status === "completed" ? "text-green-600" : txn.status === "failed" ? "text-red-600" : "text-yellow-600"}`} />
                               )}
                             </div>
                             <div className="flex-1 space-y-1">
@@ -181,9 +264,9 @@ export default function AdminPaymentsPage() {
                                 <h3 className="font-bold">{txn.description}</h3>
                                 <Badge variant={txn.type === "recharge" ? "default" : "secondary"}>{txn.type}</Badge>
                                 <Badge
-                                  variant={txn.status === "completed" ? "default" : txn.status === "failed" ? "destructive" : "outline"}
+                                  className={txn.status === "completed" ? "bg-green-500 hover:bg-green-600 text-white" : txn.status === "failed" ? "bg-red-500 hover:bg-red-600 text-white" : "bg-yellow-500 hover:bg-yellow-600 text-white"}
                                 >
-                                  {txn.status}
+                                  {txn.status === "completed" ? "Success" : txn.status === "failed" ? "Failed" : "Pending"}
                                 </Badge>
                               </div>
                               <p className="text-sm text-muted-foreground">
@@ -203,7 +286,7 @@ export default function AdminPaymentsPage() {
                             </div>
                           </div>
                           <div className="text-right space-y-2">
-                            <div className={`text-2xl font-bold ${txn.status === "completed" ? "text-emerald-600" : txn.status === "failed" ? "text-destructive" : txn.type === "recharge" ? "text-green-600" : "text-blue-600"}`}>
+                            <div className={`text-2xl font-bold ${txn.status === "completed" ? "text-green-600" : txn.status === "failed" ? "text-red-600" : "text-yellow-600"}`}>
                               {txn.type === "recharge" ? "+" : ""}₹{Math.abs(txn.amount)}
                             </div>
                             {txn.status === "pending" && txn.type === "recharge" && (

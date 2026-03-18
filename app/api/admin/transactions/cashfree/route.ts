@@ -57,6 +57,13 @@ export async function GET() {
       }
     }
 
+    // Sync DB status if Cashfree returned a definitive status different from what we have
+    if (finalStatus !== r.status && (finalStatus === "completed" || finalStatus === "failed")) {
+      try {
+        await dbQuery("UPDATE transactions SET status = ? WHERE id = ?", [finalStatus, r.id])
+      } catch {}
+    }
+
     results.push({
       id: r.id,
       userId: r.user_id,
