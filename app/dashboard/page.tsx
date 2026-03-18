@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ChevronDown, FileClock, FileImage, FileText, IdCard, LogOut, MessageCircle, Plus, Search, Smartphone, Wallet, WalletCards, Zap } from "lucide-react"
@@ -65,6 +65,41 @@ export default function DashboardPage() {
   const [downloadType, setDownloadType] = useState<"png" | "pdf" | null>(null)
   const [downloadFileError, setDownloadFileError] = useState("")
   const [resultView, setResultView] = useState<"documents" | "mparivahan">("documents")
+  // --- sessionStorage cache helpers (persist across SPA navigation, clear on refresh) ---
+  const isRefresh = useRef(true)
+  useEffect(() => {
+    // On a real page refresh, window.__dashboardVisited won't exist yet
+    // On SPA navigation back, it will already be set
+    if (!(window as any).__dashboardVisited) {
+      // First mount after refresh — clear cached data
+      sessionStorage.removeItem("dash_panData")
+      sessionStorage.removeItem("dash_panFetched")
+      sessionStorage.removeItem("dash_rcToMobileData")
+      sessionStorage.removeItem("dash_rcToMobileFetchedReg")
+      sessionStorage.removeItem("dash_ownerHistoryData")
+      sessionStorage.removeItem("dash_ownerHistoryFetchedReg")
+      ;(window as any).__dashboardVisited = true
+      isRefresh.current = true
+    } else {
+      isRefresh.current = false
+    }
+  }, [])
+
+  const readCache = useCallback((key: string) => {
+    if (isRefresh.current) return null
+    try {
+      const v = sessionStorage.getItem(key)
+      return v ? JSON.parse(v) : null
+    } catch { return null }
+  }, [])
+
+  const writeCache = useCallback((key: string, value: any) => {
+    try {
+      if (value == null) sessionStorage.removeItem(key)
+      else sessionStorage.setItem(key, JSON.stringify(value))
+    } catch {}
+  }, [])
+
   const [panLookup, setPanLookup] = useState("")
   const [panLoading, setPanLoading] = useState(false)
   const [panError, setPanError] = useState("")
@@ -80,6 +115,18 @@ export default function DashboardPage() {
   const [ownerHistoryError, setOwnerHistoryError] = useState("")
   const [ownerHistoryData, setOwnerHistoryData] = useState<any | null>(null)
   const [ownerHistoryFetchedReg, setOwnerHistoryFetchedReg] = useState("")
+
+  // Restore cached data on SPA navigation (not on refresh)
+  useEffect(() => {
+    if (isRefresh.current) return
+    const cachedPan = readCache("dash_panData")
+    if (cachedPan) { setPanData(cachedPan); setPanFetched(readCache("dash_panFetched") || "") }
+    const cachedRcMobile = readCache("dash_rcToMobileData")
+    if (cachedRcMobile) { setRcToMobileData(cachedRcMobile); setRcToMobileFetchedReg(readCache("dash_rcToMobileFetchedReg") || "") }
+    const cachedOwner = readCache("dash_ownerHistoryData")
+    if (cachedOwner) { setOwnerHistoryData(cachedOwner); setOwnerHistoryFetchedReg(readCache("dash_ownerHistoryFetchedReg") || "") }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const eventSourceRef = useRef<EventSource | null>(null)
   const isAdmin = user?.role === "admin"
 
@@ -102,6 +149,8 @@ export default function DashboardPage() {
     setOwnerHistoryData(null)
     setOwnerHistoryFetchedReg("")
     setOwnerHistoryLoading(false)
+    writeCache("dash_ownerHistoryData", null)
+    writeCache("dash_ownerHistoryFetchedReg", null)
   }
 
   const resetPanCard = () => {
@@ -110,6 +159,8 @@ export default function DashboardPage() {
     setPanData(null)
     setPanFetched("")
     setPanLoading(false)
+    writeCache("dash_panData", null)
+    writeCache("dash_panFetched", null)
   }
 
   const resetRcToMobileCard = () => {
@@ -118,6 +169,8 @@ export default function DashboardPage() {
     setRcToMobileData(null)
     setRcToMobileFetchedReg("")
     setRcToMobileLoading(false)
+    writeCache("dash_rcToMobileData", null)
+    writeCache("dash_rcToMobileFetchedReg", null)
   }
 
   const fetchRcToMobile = async () => {
@@ -133,9 +186,12 @@ export default function DashboardPage() {
       if (!res.ok || !json?.ok) {
         throw new Error(json?.error || "RC-to-mobile lookup failed")
       }
-      setRcToMobileData(json?.data ?? null)
+      const mData = json?.data ?? null
+      setRcToMobileData(mData)
       setRcToMobileFetchedReg(reg)
       setRcToMobileLookup(reg)
+      writeCache("dash_rcToMobileData", mData)
+      writeCache("dash_rcToMobileFetchedReg", reg)
       void refreshUser().catch(() => { })
     } catch (e: any) {
       setRcToMobileError(e?.message || "RC-to-mobile lookup failed")
@@ -157,9 +213,12 @@ export default function DashboardPage() {
       if (!res.ok || !json?.ok) {
         throw new Error(json?.error || "PAN lookup failed")
       }
-      setPanData(json?.data ?? null)
+      const pData = json?.data ?? null
+      setPanData(pData)
       setPanFetched(pan)
       setPanLookup(pan)
+      writeCache("dash_panData", pData)
+      writeCache("dash_panFetched", pan)
       void refreshUser().catch(() => { })
     } catch (e: any) {
       setPanError(e?.message || "PAN lookup failed")
@@ -181,9 +240,12 @@ export default function DashboardPage() {
       if (!res.ok || !json?.ok) {
         throw new Error(json?.error || "Owner history lookup failed")
       }
-      setOwnerHistoryData(json?.data ?? null)
+      const oData = json?.data ?? null
+      setOwnerHistoryData(oData)
       setOwnerHistoryFetchedReg(reg)
       setOwnerHistoryLookup(reg)
+      writeCache("dash_ownerHistoryData", oData)
+      writeCache("dash_ownerHistoryFetchedReg", reg)
       void refreshUser().catch(() => { })
     } catch (e: any) {
       setOwnerHistoryError(e?.message || "Owner history lookup failed")
@@ -192,35 +254,6 @@ export default function DashboardPage() {
     }
   }
 
-  useEffect(() => {
-    if (!ownerHistoryData) return
-
-    const timeoutId = window.setTimeout(() => {
-      resetOwnerHistoryCard()
-    }, 30_000)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [ownerHistoryData])
-
-  useEffect(() => {
-    if (!panData) return
-
-    const timeoutId = window.setTimeout(() => {
-      resetPanCard()
-    }, 30_000)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [panData])
-
-  useEffect(() => {
-    if (!rcToMobileData) return
-
-    const timeoutId = window.setTimeout(() => {
-      resetRcToMobileCard()
-    }, 30_000)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [rcToMobileData])
 
   useEffect(() => {
     if (!isAuthenticated) {
