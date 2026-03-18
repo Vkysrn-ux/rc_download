@@ -13,7 +13,7 @@ function CashfreeReturnContent() {
   const registration = searchParams.get("registration") || ""
   const purpose = searchParams.get("purpose") || ""
   const pan = searchParams.get("pan") || ""
-  const isRecharge = searchParams.get("recharge") === "1" || searchParams.get("recharge") === "true"
+  const isRecharge = searchParams.get("credit") === "1" || searchParams.get("credit") === "true" || searchParams.get("recharge") === "1" || searchParams.get("recharge") === "true"
 
   const [error, setError] = useState("")
   const [paymentState, setPaymentState] = useState<"verifying" | "completed" | "failed" | "cancelled" | "pending">("verifying")
