@@ -273,16 +273,6 @@ export default function DashboardPage() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!rcData) return
-
-    const timeoutId = window.setTimeout(() => {
-      if (downloading) return
-      resetDownloadCard()
-    }, 30_000)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [downloading, rcData, resetDownloadCard])
 
   if (!isAuthenticated || !user || isAdmin) return null
 
