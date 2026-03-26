@@ -196,23 +196,6 @@ export default function ServiceCatalog({
     ownerHistoryAutoStartedRef.current = false
   }
 
-  useEffect(() => {
-    if (!rcToMobileData) return
-    const timeoutId = window.setTimeout(() => resetRcToMobileCard(), 30_000)
-    return () => window.clearTimeout(timeoutId)
-  }, [rcToMobileData])
-
-  useEffect(() => {
-    if (!panData) return
-    const timeoutId = window.setTimeout(() => resetPanCard(), 30_000)
-    return () => window.clearTimeout(timeoutId)
-  }, [panData])
-
-  useEffect(() => {
-    if (!ownerHistoryData) return
-    const timeoutId = window.setTimeout(() => resetOwnerHistoryCard(), 30_000)
-    return () => window.clearTimeout(timeoutId)
-  }, [ownerHistoryData])
 
   const fetchRcToMobile = async (opts?: { transactionId?: string; reg?: string }) => {
     const reg = normalizeRegistration(opts?.reg ?? rcToMobileRegistration)

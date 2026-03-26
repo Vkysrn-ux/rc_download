@@ -72,9 +72,9 @@ function CashfreeReturnContent() {
         return
       }
 
-      // Default: redirect back to home with params so the Guest Access card can show download actions inline.
+      // Redirect guest RC download directly to the success/download page so RC details are shown immediately.
       if (registration) {
-        router.replace(`/?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`)
+        router.replace(`/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`)
         return
       }
 
