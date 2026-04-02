@@ -39,6 +39,7 @@ function PaymentSuccessContent() {
   const [rcLoading, setRcLoading] = useState(false)
   const [rcData, setRcData] = useState<any | null>(null)
   const [rcError, setRcError] = useState<string>("")
+  const [fetchKey, setFetchKey] = useState(0)
   const [downloadError, setDownloadError] = useState<string>("")
   const [resultView, setResultView] = useState<"documents" | "mparivahan">("documents")
   const [apiSteps, setApiSteps] = useState<RcApiStepStatus[] | null>(null)
@@ -54,13 +55,15 @@ function PaymentSuccessContent() {
       return
     }
 
-    // Restore from sessionStorage to avoid re-fetching on refresh
-    const cached = getSessionRcData(transactionId)
-    if (cached) {
-      setRcData(cached)
-      setRcLoading(false)
-      setApiSteps(null)
-      return
+    // Restore from sessionStorage to avoid re-fetching on refresh (skip on retries)
+    if (fetchKey === 0) {
+      const cached = getSessionRcData(transactionId)
+      if (cached) {
+        setRcData(cached)
+        setRcLoading(false)
+        setApiSteps(null)
+        return
+      }
     }
 
     setRcLoading(true)
@@ -120,12 +123,17 @@ function PaymentSuccessContent() {
 
     source.addEventListener("server_error", (event) => {
       const payload = JSON.parse((event as MessageEvent).data || "{}")
-      setRcData(null)
-      setRcError(payload?.error || "RC data not found")
       const status = Number(payload?.status)
+      setRcData(null)
       if (status === 400 || status === 402) setApiSteps(null)
       setRcLoading(false)
       source.close()
+      if (status === 402) {
+        setRcError("Waiting for payment confirmation… retrying automatically.")
+        setTimeout(() => setFetchKey((k) => k + 1), 5000)
+      } else {
+        setRcError(payload?.error || "RC data not found")
+      }
     })
 
     source.onerror = () => {
@@ -138,7 +146,7 @@ function PaymentSuccessContent() {
     return () => {
       source.close()
     }
-  }, [registration, transactionId])
+  }, [registration, transactionId, fetchKey])
 
 
   const captureCombinedCanvas = async (scale = 2) => {

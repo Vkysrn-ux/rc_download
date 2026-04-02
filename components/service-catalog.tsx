@@ -454,8 +454,14 @@ export default function ServiceCatalog({
       return
     }
 
-    if (onRcPay) onRcPay()
-    else void handleRcPayInternal()
+    if (onRcPay) {
+      onRcPay()
+      return
+    }
+
+    const registration = normalizeRegistration(rcRegistration)
+    if (!registration) return
+    router.push(`/payment/confirm?registration=${encodeURIComponent(registration)}&source=upi&guest=true`)
   }
 
   const renderExpandedContent = (serviceId: ServiceId) => {
@@ -484,31 +490,6 @@ export default function ServiceCatalog({
                 }}
                 className="h-11 font-mono tracking-widest"
                 autoComplete="off"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="rc-wa" className="text-xs font-semibold uppercase tracking-wide">
-                Whatsapp Number
-              </Label>
-              <Input
-                id="rc-wa"
-                placeholder="+91XXXXXXXXXX"
-                value={rcWhatsapp}
-                onChange={(e) => {
-                  const nextValue = e.target.value
-                  if (onRcWhatsappChange) onRcWhatsappChange(nextValue)
-                  else setRcWhatsappInternal(nextValue)
-                }}
-                onFocus={() => {
-                  if (!rcWhatsapp) {
-                    if (onRcWhatsappChange) onRcWhatsappChange("+91")
-                    else setRcWhatsappInternal("+91")
-                  }
-                }}
-                className="h-11"
-                autoComplete="tel"
-                inputMode="tel"
               />
             </div>
 

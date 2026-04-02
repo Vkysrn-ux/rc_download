@@ -36,7 +36,6 @@ export default function HomePageClient() {
   const [showCookieBanner, setShowCookieBanner] = useState(false)
   const [guestRegistration, setGuestRegistration] = useState("")
   const [guestResult, setGuestResult] = useState<string | null>(null)
-  const [guestPhone, setGuestPhone] = useState("+91")
   const [showVahanPreview, setShowVahanPreview] = useState(false)
   const originalRootStyleRef = useRef<string>("")
   const originalBodyStyleRef = useRef<string>("")
@@ -108,47 +107,13 @@ export default function HomePageClient() {
     body.style.color = "#000000"
   }, [showVahanPreview])
 
-  const handlePay = async () => {
+  const handlePay = () => {
     const registration = (guestRegistration || "").trim()
     if (!registration) {
       setGuestResult("Enter vehicle registration to continue.")
       return
     }
-
-    const digitsOnly = (guestPhone || "").replace(/\D/g, "")
-    if (digitsOnly.length < 10 || digitsOnly.length > 15) {
-      setGuestResult("Please enter a valid phone number (with country code).")
-      return
-    }
-
-    setGuestResult("Starting payment...")
-    try {
-      const res = await fetch("/api/cashfree/order", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          purpose: "download",
-          registrationNumber: registration,
-          guest: true,
-          customerPhone: guestPhone,
-        }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        const msg = json?.error || "Unable to start payment"
-        setGuestResult(String(msg))
-        return
-      }
-
-      const mode = json?.mode || "sandbox"
-      const loader = await import("@/lib/cashfree-client")
-      const cashfree = await loader.loadCashfree(mode)
-      if (!cashfree) throw new Error("Cashfree failed to load")
-
-      await cashfree.checkout({ paymentSessionId: json.paymentSessionId, redirectTarget: "_self" } as any)
-    } catch (e: any) {
-      setGuestResult(e?.message || "Payment failed")
-    }
+    router.push(`/payment/confirm?registration=${encodeURIComponent(registration)}&source=upi&guest=true`)
   }
 
   useEffect(() => {
@@ -205,10 +170,8 @@ export default function HomePageClient() {
           <section className="max-w-4xl mx-auto">
             <ServiceCatalog
               rcRegistration={guestRegistration}
-              rcWhatsapp={guestPhone}
               rcResult={guestResult}
               onRcRegistrationChange={setGuestRegistration}
-              onRcWhatsappChange={setGuestPhone}
               onRcPay={handlePay}
             />
           </section>
@@ -243,17 +206,7 @@ export default function HomePageClient() {
                     value={guestRegistration}
                     onChange={(e) => setGuestRegistration(e.target.value.toUpperCase())}
                   />
-                  <div className="mt-3">
-                    <Label htmlFor="guestPhone">Whatsapp Number</Label>
-                    <Input
-                      id="guestPhone"
-                      inputMode="tel"
-                      placeholder="+9198xxxxxxxx"
-                      className="mt-2"
-                      value={guestPhone}
-                      onChange={(e) => setGuestPhone(e.target.value)}
-                    />
-                  </div>
+
                   <div className="mt-3 flex gap-3">
                     <Button onClick={handlePay} className="w-full">
                       Pay ₹23
