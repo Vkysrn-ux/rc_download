@@ -131,6 +131,9 @@ function PaymentSuccessContent() {
       if (status === 402) {
         setRcError("Waiting for payment confirmation… retrying automatically.")
         setTimeout(() => setFetchKey((k) => k + 1), 5000)
+      } else if (status === 503) {
+        setRcError("RC servers are temporarily busy. Your payment is confirmed — retrying automatically.")
+        setTimeout(() => setFetchKey((k) => k + 1), 15000)
       } else {
         setRcError(payload?.error || "RC data not found")
       }
@@ -323,7 +326,16 @@ function PaymentSuccessContent() {
             <CardTitle>Document Preview</CardTitle>
           </CardHeader>
           <CardContent>
-            {rcError && <div className="text-sm text-destructive">{rcError}</div>}
+            {rcError && (
+              <div className="space-y-2">
+                <div className="text-sm text-destructive">{rcError}</div>
+                {!rcLoading && (
+                  <Button size="sm" variant="outline" onClick={() => setFetchKey((k) => k + 1)}>
+                    Try Again
+                  </Button>
+                )}
+              </div>
+            )}
             {downloadError && <div className="text-sm text-destructive mt-2">{downloadError}</div>}
             {(rcLoading || apiSteps) && <RcApiProgressChecklist active={rcLoading} steps={apiSteps} className="mt-3" />}
             {rcData && (

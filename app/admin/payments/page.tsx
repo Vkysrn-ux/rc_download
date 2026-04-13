@@ -289,7 +289,7 @@ export default function AdminPaymentsPage() {
                             <div className={`text-2xl font-bold ${txn.status === "completed" ? "text-green-600" : txn.status === "failed" ? "text-red-600" : "text-yellow-600"}`}>
                               {txn.type === "recharge" ? "+" : ""}₹{Math.abs(txn.amount)}
                             </div>
-                            {txn.status === "pending" && txn.type === "recharge" && (
+                            {txn.status === "pending" && (
                               <Button
                                 size="sm"
                                 onClick={() => approve(txn.id)}

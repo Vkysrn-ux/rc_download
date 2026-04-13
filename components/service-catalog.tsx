@@ -269,91 +269,22 @@ export default function ServiceCatalog({
     }
   }
 
-  const handleRcToMobilePayGuest = async () => {
+  const handleRcToMobilePayGuest = () => {
     const reg = normalizeRegistration(rcToMobileRegistration)
     if (!reg) return
-    if (!guestPhoneValid) {
-      setRcToMobileError("Payment phone is not configured. Please contact support.")
-      return
-    }
-    setRcToMobileError("")
-    setRcToMobileLoading(true)
-    try {
-      const res = await fetch("/api/cashfree/order", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ purpose: "rc_to_mobile", registrationNumber: reg, guest: true, customerPhone: guestPhone }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || "Unable to start payment")
-
-      const mode = json?.mode || "sandbox"
-      const loader = await import("@/lib/cashfree-client")
-      const cashfree = await loader.loadCashfree(mode)
-      if (!cashfree) throw new Error("Cashfree failed to load")
-      await cashfree.checkout({ paymentSessionId: json.paymentSessionId, redirectTarget: "_self" } as any)
-    } catch (e: any) {
-      setRcToMobileError(e?.message || "Payment failed")
-      setRcToMobileLoading(false)
-    }
+    router.push(`/payment/confirm?purpose=rc_to_mobile&registration=${encodeURIComponent(reg)}&guest=true`)
   }
 
-  const handlePanPayGuest = async () => {
+  const handlePanPayGuest = () => {
     const pan = normalizeRegistration(panNumber)
     if (!pan) return
-    if (!guestPhoneValid) {
-      setPanError("Payment phone is not configured. Please contact support.")
-      return
-    }
-    setPanError("")
-    setPanLoading(true)
-    try {
-      const res = await fetch("/api/cashfree/order", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ purpose: "pan_details", panNumber: pan, guest: true, customerPhone: guestPhone }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || "Unable to start payment")
-
-      const mode = json?.mode || "sandbox"
-      const loader = await import("@/lib/cashfree-client")
-      const cashfree = await loader.loadCashfree(mode)
-      if (!cashfree) throw new Error("Cashfree failed to load")
-      await cashfree.checkout({ paymentSessionId: json.paymentSessionId, redirectTarget: "_self" } as any)
-    } catch (e: any) {
-      setPanError(e?.message || "Payment failed")
-      setPanLoading(false)
-    }
+    router.push(`/payment/confirm?purpose=pan_details&pan=${encodeURIComponent(pan)}&guest=true`)
   }
 
-  const handleOwnerHistoryPayGuest = async () => {
+  const handleOwnerHistoryPayGuest = () => {
     const reg = normalizeRegistration(ownerHistoryRegistration)
     if (!reg) return
-    if (!guestPhoneValid) {
-      setOwnerHistoryError("Payment phone is not configured. Please contact support.")
-      return
-    }
-    setOwnerHistoryError("")
-    setOwnerHistoryLoading(true)
-    try {
-      const res = await fetch("/api/cashfree/order", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ purpose: "rc_owner_history", registrationNumber: reg, guest: true, customerPhone: guestPhone }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || "Unable to start payment")
-
-      const mode = json?.mode || "sandbox"
-      const loader = await import("@/lib/cashfree-client")
-      const cashfree = await loader.loadCashfree(mode)
-      if (!cashfree) throw new Error("Cashfree failed to load")
-      await cashfree.checkout({ paymentSessionId: json.paymentSessionId, redirectTarget: "_self" } as any)
-    } catch (e: any) {
-      setOwnerHistoryError(e?.message || "Payment failed")
-      setOwnerHistoryLoading(false)
-    }
+    router.push(`/payment/confirm?purpose=rc_owner_history&registration=${encodeURIComponent(reg)}&guest=true`)
   }
 
   useEffect(() => {

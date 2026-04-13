@@ -8,7 +8,7 @@ import { loadCashfree } from "@/lib/cashfree-client"
 import { shareManualPaymentProof } from "@/lib/manual-payment-proof"
 import { RcDownloadStepper } from "@/components/rc-download-stepper"
 import { formatInr } from "@/lib/format"
-import { getRcDownloadPriceInr, MIN_WALLET_RECHARGE_INR } from "@/lib/pricing"
+import { getRcDownloadPriceInr, getPanDetailsPriceInr, getRcToMobilePriceInr, getRcOwnerHistoryPriceInr, MIN_WALLET_RECHARGE_INR } from "@/lib/pricing"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -25,6 +25,7 @@ type PaymentConfig = {
   enableRazorpay: boolean
   enableManualUpi: boolean
   enableCashfree: boolean
+  enableFinvedex: boolean
   cashfreeMode: "sandbox" | "production"
 }
 
@@ -53,6 +54,8 @@ function PaymentConfirmContent() {
   const { user, isAuthenticated, refreshUser } = useAuth()
 
   const registration = searchParams.get("registration") || ""
+  const pan = searchParams.get("pan") || ""
+  const purpose = (searchParams.get("purpose") || "download") as "download" | "pan_details" | "rc_to_mobile" | "rc_owner_history"
   const isGuest = !isAuthenticated
 
   const [loading, setLoading] = useState(false)
@@ -68,16 +71,30 @@ function PaymentConfirmContent() {
   const proofRef = useRef<HTMLDivElement | null>(null)
   const [guestPhone, setGuestPhone] = useState("")
   const [cashfreePhone, setCashfreePhone] = useState("")
+  const [finvedexPhone, setFinvedexPhone] = useState("")
   const savedPhoneDigits = phoneDigits(user?.phone || "")
   const hasSavedPhone = savedPhoneDigits.length >= 10 && savedPhoneDigits.length <= 15
   const maskedSavedPhone = hasSavedPhone
     ? `${"*".repeat(Math.max(0, savedPhoneDigits.length - 4))}${savedPhoneDigits.slice(-4)}`
     : ""
 
-  const price = getRcDownloadPriceInr(isGuest)
+  const price =
+    purpose === "pan_details" ? getPanDetailsPriceInr(isGuest) :
+    purpose === "rc_to_mobile" ? getRcToMobilePriceInr(isGuest) :
+    purpose === "rc_owner_history" ? getRcOwnerHistoryPriceInr(isGuest) :
+    getRcDownloadPriceInr(isGuest)
+
+  const purposeLabel =
+    purpose === "pan_details" ? "PAN Details" :
+    purpose === "rc_to_mobile" ? "RC to Mobile Number" :
+    purpose === "rc_owner_history" ? "RC Owner History" :
+    "Vehicle RC Download"
+
+  const purposeRef = purpose === "pan_details" ? pan : registration
   const enableRazorpay = Boolean(config?.enableRazorpay)
   const enableManualUpi = Boolean(config?.enableManualUpi)
   const enableCashfree = Boolean(config?.enableCashfree)
+  const enableFinvedex = Boolean(config?.enableFinvedex)
   const canPayWithWallet = isAuthenticated
   const walletBalanceValue = Number(user?.walletBalance ?? 0)
   const walletBalance = Number.isFinite(walletBalanceValue) ? walletBalanceValue : 0
@@ -100,6 +117,7 @@ function PaymentConfirmContent() {
           enableRazorpay: false,
           enableManualUpi: false,
           enableCashfree: false,
+          enableFinvedex: false,
           cashfreeMode: "sandbox",
         }),
       )
@@ -119,8 +137,8 @@ function PaymentConfirmContent() {
 
   const upiUri = useMemo(() => {
     if (!config?.upiId) return ""
-    return buildUpiUri(config.upiId, config.payeeName, price, `Vehicle RC Download ${registration}`)
-  }, [config?.upiId, config?.payeeName, price, registration])
+    return buildUpiUri(config.upiId, config.payeeName, price, `${purposeLabel} ${purposeRef}`)
+  }, [config?.upiId, config?.payeeName, price, purposeLabel, purposeRef])
 
   useEffect(() => {
     let cancelled = false
@@ -144,9 +162,13 @@ function PaymentConfirmContent() {
   const finishUpiFlow = (transactionId: string) => {
     setSuccess(true)
     setTimeout(() => {
-      router.push(
-        `/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`,
-      )
+      if (purpose === "pan_details") {
+        router.push(`/services?purpose=pan_details&pan=${encodeURIComponent(pan)}&transactionId=${encodeURIComponent(transactionId)}`)
+      } else if (purpose === "rc_to_mobile" || purpose === "rc_owner_history") {
+        router.push(`/services?purpose=${purpose}&registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`)
+      } else {
+        router.push(`/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(transactionId)}`)
+      }
     }, 1200)
   }
 
@@ -163,10 +185,10 @@ function PaymentConfirmContent() {
     const displayName = isAuthenticated ? user?.name || "-" : "Guest"
     const displayUserId = isAuthenticated ? user?.id || "-" : "N/A"
     const message = [
-      "Manual UPI payment (RC download)",
+      `Manual UPI payment (${purposeLabel})`,
       `User: ${displayName}`,
       `User ID: ${displayUserId}`,
-      `Registration: ${registration}`,
+      `Ref: ${purposeRef}`,
       `Amount: ₹${price}`,
       transactionId ? `Transaction ID: ${transactionId}` : "",
       `Time: ${now}`,
@@ -196,7 +218,7 @@ function PaymentConfirmContent() {
       const res = await fetch("/api/download/purchase", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ registrationNumber: registration, paymentMethod: "wallet", guest: isGuest }),
+        body: JSON.stringify({ registrationNumber: purposeRef, paymentMethod: "wallet", guest: isGuest }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -212,9 +234,13 @@ function PaymentConfirmContent() {
 
       setSuccess(true)
       setTimeout(() => {
-        router.push(
-          `/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`,
-        )
+        if (purpose === "pan_details") {
+          router.push(`/services?purpose=pan_details&pan=${encodeURIComponent(pan)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`)
+        } else if (purpose === "rc_to_mobile" || purpose === "rc_owner_history") {
+          router.push(`/services?purpose=${purpose}&registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`)
+        } else {
+          router.push(`/payment/success?registration=${encodeURIComponent(registration)}&transactionId=${encodeURIComponent(json?.transactionId || "")}`)
+        }
       }, 1200)
     } catch {
       setError("Payment failed. Please try again.")
@@ -232,7 +258,7 @@ function PaymentConfirmContent() {
       const res = await fetch("/api/download/purchase", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ registrationNumber: registration, paymentMethod: "upi", guest: isGuest }),
+        body: JSON.stringify({ registrationNumber: purposeRef, paymentMethod: "upi", guest: isGuest }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -396,6 +422,56 @@ function PaymentConfirmContent() {
     }
   }
 
+  const handleFinvedexPayment = async () => {
+    setLoading(true)
+    setError("")
+    setInfo("")
+
+    if (!purposeRef) {
+      setError("Missing reference number.")
+      setLoading(false)
+      return
+    }
+
+    const phone = (finvedexPhone || "").replace(/\D/g, "")
+    if (!phone || phone.length < 10 || phone.length > 15) {
+      setError("Please enter a valid 10-digit phone number.")
+      setLoading(false)
+      return
+    }
+
+    try {
+      const body: Record<string, unknown> = { purpose, customerPhone: phone, guest: isGuest }
+      if (purpose === "pan_details") {
+        body.panNumber = pan
+      } else {
+        body.registrationNumber = registration
+      }
+
+      const res = await fetch("/api/finvedex/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json?.error || "Unable to start payment. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      if (json?.paymentUrl) {
+        window.location.href = json.paymentUrl
+      } else {
+        setError("Could not get payment URL from Finvedex.")
+        setLoading(false)
+      }
+    } catch (e: any) {
+      setError(e?.message || "Unable to start payment. Please try again.")
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       <header className="border-b bg-white/80 backdrop-blur-sm">
@@ -436,11 +512,11 @@ function PaymentConfirmContent() {
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Registration Number</span>
-                      <span className="font-medium">{registration}</span>
+                      <span className="text-muted-foreground">{purpose === "pan_details" ? "PAN Number" : "Registration Number"}</span>
+                      <span className="font-medium">{purposeRef}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Vehicle RC Download</span>
+                      <span className="text-muted-foreground">{purposeLabel}</span>
                       <span className="font-medium">{formatInr(price, { maximumFractionDigits: 0 })}</span>
                     </div>
                     <Separator />
@@ -498,7 +574,7 @@ function PaymentConfirmContent() {
                 </Card>
               ) : (
                 <>
-                  {!enableRazorpay && !enableManualUpi && !enableCashfree && (
+                  {!enableRazorpay && !enableManualUpi && !enableCashfree && !enableFinvedex && (
                     <Card className="border-primary/40">
                       <CardHeader>
                         <CardTitle>Payments Temporarily Unavailable</CardTitle>
@@ -555,6 +631,37 @@ function PaymentConfirmContent() {
                           className="w-full"
                           size="lg"
                           onClick={handleCashfreePayment}
+                          disabled={loading || !registration || Boolean(manualTxn)}
+                        >
+                          {loading ? "Opening..." : `Pay ${formatInr(price, { maximumFractionDigits: 0 })}`}
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  )}
+
+                  {enableFinvedex && (
+                    <Card className="border-primary">
+                      <CardHeader>
+                        <CardTitle>Pay with Finvedex</CardTitle>
+                        <CardDescription>UPI, Cards, NetBanking</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="finvedexPhone">Mobile Number</Label>
+                          <Input
+                            id="finvedexPhone"
+                            inputMode="tel"
+                            placeholder="Enter 10-digit mobile number"
+                            value={finvedexPhone}
+                            onChange={(e) => setFinvedexPhone(e.target.value)}
+                          />
+                        </div>
+                      </CardContent>
+                      <CardFooter>
+                        <Button
+                          className="w-full"
+                          size="lg"
+                          onClick={handleFinvedexPayment}
                           disabled={loading || !registration || Boolean(manualTxn)}
                         >
                           {loading ? "Opening..." : `Pay ${formatInr(price, { maximumFractionDigits: 0 })}`}
@@ -650,7 +757,7 @@ function PaymentConfirmContent() {
                         <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
                           <div className="font-medium">Payment Details</div>
                           <div className="text-muted-foreground">Amount: ₹{price}</div>
-                          <div className="text-muted-foreground">Registration: {registration}</div>
+                          <div className="text-muted-foreground">{purpose === "pan_details" ? "PAN" : "Registration"}: {purposeRef}</div>
                           <div className="text-muted-foreground">User: {isAuthenticated ? user?.name || "-" : "Guest"}</div>
                           <div className="text-muted-foreground">
                             User ID: {isAuthenticated ? user?.id || "-" : "N/A"}

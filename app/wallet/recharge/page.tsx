@@ -25,6 +25,7 @@ type PaymentConfig = {
   enableRazorpay: boolean
   enableManualUpi: boolean
   enableCashfree: boolean
+  enableFinvedex: boolean
   cashfreeMode: "sandbox" | "production"
 }
 
@@ -64,6 +65,7 @@ export default function WalletRechargePage() {
   const [sharing, setSharing] = useState(false)
   const [shareError, setShareError] = useState("")
   const [cashfreePhone, setCashfreePhone] = useState("")
+  const [finvedexPhone, setFinvedexPhone] = useState("")
   const proofRef = useRef<HTMLDivElement | null>(null)
   const amountPrefillRef = useRef(false)
 
@@ -115,6 +117,7 @@ export default function WalletRechargePage() {
           enableRazorpay: false,
           enableManualUpi: false,
           enableCashfree: false,
+          enableFinvedex: false,
           cashfreeMode: "sandbox",
         }),
       )
@@ -123,7 +126,8 @@ export default function WalletRechargePage() {
   const enableRazorpay = Boolean(config?.enableRazorpay)
   const enableManualUpi = Boolean(config?.enableManualUpi)
   const enableCashfree = Boolean(config?.enableCashfree)
-  const anyPaymentEnabled = enableCashfree || enableRazorpay || enableManualUpi
+  const enableFinvedex = Boolean(config?.enableFinvedex)
+  const anyPaymentEnabled = enableCashfree || enableRazorpay || enableManualUpi || enableFinvedex
 
   const numericAmount = useMemo(() => Number.parseFloat(amount || "0"), [amount])
 
@@ -374,6 +378,46 @@ export default function WalletRechargePage() {
     }
   }
 
+  const handleFinvedexRecharge = async () => {
+    if (numericAmount < MIN_WALLET_RECHARGE_INR) {
+      setError(`Minimum recharge amount is INR ${MIN_WALLET_RECHARGE_INR}.`)
+      return
+    }
+    setLoading(true)
+    setError("")
+
+    const phone = (finvedexPhone || savedPhoneDigits || "").replace(/\D/g, "")
+    if (!phone || phone.length < 10 || phone.length > 15) {
+      setError("Please enter a valid 10-digit mobile number.")
+      setLoading(false)
+      return
+    }
+
+    try {
+      const res = await fetch("/api/finvedex/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ purpose: "recharge", amount: numericAmount, customerPhone: phone }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json?.error || "Unable to start payment. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      if (json?.paymentUrl) {
+        window.location.href = json.paymentUrl
+      } else {
+        setError("Could not get payment URL from Finvedex.")
+        setLoading(false)
+      }
+    } catch (e: any) {
+      setError(e?.message || "Unable to start payment. Please try again.")
+      setLoading(false)
+    }
+  }
+
   if (!isAuthenticated) return null
 
   return (
@@ -496,8 +540,42 @@ export default function WalletRechargePage() {
             <DialogDescription className="text-base">Pay ₹{amount} to recharge your wallet</DialogDescription>
           </DialogHeader>
 
-          {!manualTxn && (enableCashfree || enableRazorpay) && (
+          {!manualTxn && (enableCashfree || enableRazorpay || enableFinvedex) && (
             <div className="space-y-3">
+              {enableFinvedex && (
+                <div className="space-y-2">
+                  {!hasSavedPhone ? (
+                    <div className="space-y-1">
+                      <Label htmlFor="finvedexPhone">Mobile Number (required)</Label>
+                      <Input
+                        id="finvedexPhone"
+                        inputMode="tel"
+                        placeholder="Enter 10-digit mobile number"
+                        value={finvedexPhone}
+                        onChange={(e) => setFinvedexPhone(e.target.value)}
+                        className="h-11"
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <span>
+                          Using saved mobile: <span className="font-mono">{maskedSavedPhone}</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    onClick={handleFinvedexRecharge}
+                    disabled={loading || !numericAmount || numericAmount < MIN_WALLET_RECHARGE_INR}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {loading ? "Opening..." : "Pay with Finvedex"}
+                  </Button>
+                </div>
+              )}
               {enableCashfree && (
                 <div className="space-y-2">
                   {!hasSavedPhone ? (
@@ -542,7 +620,7 @@ export default function WalletRechargePage() {
                   {loading ? "Opening..." : "Pay with Razorpay"}
                 </Button>
               )}
-              {enableManualUpi && <div className="text-xs text-muted-foreground text-center">or pay via UPI (manual)</div>}
+              {enableManualUpi && (enableCashfree || enableRazorpay || enableFinvedex) && <div className="text-xs text-muted-foreground text-center">or pay via UPI (manual)</div>}
             </div>
           )}
 
@@ -644,7 +722,7 @@ export default function WalletRechargePage() {
               )}
             </div>
           )
-          ) : !enableCashfree && !enableRazorpay ? (
+          ) : !enableCashfree && !enableRazorpay && !enableFinvedex ? (
             <Alert className="bg-blue-50 border-blue-200">
               <AlertDescription className="text-blue-900">
                 Wallet recharge is temporarily unavailable while we upgrade payments.
