@@ -23,20 +23,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Invalid body" }, { status: 400 })
   }
 
-  // Finvedex may use: order_id, status ("success"/"failed"), txn_id / transaction_id
-  const orderId = String(body?.order_id || body?.orderId || "")
-  const status = String(body?.status || body?.payment_status || "").toLowerCase()
-  const txnId = String(body?.transaction_id || body?.txn_id || body?.transactionId || "")
+  // Finvedex webhook payload: order_id, status ("SUCCESS"/"COMPLETED"/"FAILED"), txnStatus inside result
+  const orderId = String(body?.order_id || body?.orderId || (body?.result as any)?.orderId || "")
+  const rawStatus = String(
+    body?.status ||
+    (body?.result as any)?.status ||
+    (body?.result as any)?.txnStatus ||
+    body?.payment_status ||
+    ""
+  ).toUpperCase()
+  const txnId = String(body?.transaction_id || body?.txn_id || body?.transactionId || (body?.result as any)?.txnId || "")
+
+  console.log("[finvedex webhook] orderId:", orderId, "status:", rawStatus, "body:", JSON.stringify(body).slice(0, 300))
 
   if (!orderId) {
     return NextResponse.json({ ok: false, error: "Missing order_id" }, { status: 400 })
   }
 
-  const isSuccess = status === "success" || status === "completed" || status === "paid"
+  const isSuccess = rawStatus === "SUCCESS" || rawStatus === "COMPLETED" || rawStatus === "PAID"
 
   if (!isSuccess) {
     // Mark as failed if explicitly failed
-    if (status === "failed" || status === "failure" || status === "cancelled") {
+    if (rawStatus === "FAILED" || rawStatus === "FAILURE" || rawStatus === "CANCELLED") {
       await dbQuery(
         "UPDATE transactions SET status = 'failed' WHERE gateway_order_id = ? AND status = 'pending'",
         [orderId],

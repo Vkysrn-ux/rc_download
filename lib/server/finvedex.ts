@@ -37,22 +37,40 @@ export async function createFinvedexOrder(params: {
     body: body.toString(),
   })
 
-  const json = await res.json().catch(() => null)
-  if (!res.ok || !json) {
-    throw new Error(json?.message || json?.error || `Finvedex error ${res.status}`)
+  const text = await res.text().catch(() => "")
+  let json: any = null
+  try { json = JSON.parse(text) } catch { /* not JSON */ }
+
+  console.log("[finvedex create-order] status:", res.status, "raw:", text.slice(0, 500))
+
+  if (!json) {
+    throw new Error(`Finvedex returned non-JSON: ${text.slice(0, 200)}`)
   }
 
-  // Common response shapes: { status, payment_url } or { data: { payment_url } }
+  // Finvedex returns HTTP 200 even for errors — check status field
+  if (!res.ok || json?.status === false) {
+    throw new Error(json?.message || json?.error || `Finvedex error ${res.status}: ${text.slice(0, 200)}`)
+  }
+
+  // Log all top-level keys so we can find the correct payment URL field
+  console.log("[finvedex create-order] response keys:", Object.keys(json))
+
   const paymentUrl =
+    json?.result?.payment_url ||
     json?.payment_url ||
     json?.data?.payment_url ||
     json?.paymentUrl ||
     json?.redirect_url ||
     json?.url ||
+    json?.payment_link ||
+    json?.link ||
+    json?.data?.url ||
+    json?.data?.link ||
+    json?.data?.redirect_url ||
     ""
 
   if (!paymentUrl) {
-    throw new Error(json?.message || "Finvedex did not return a payment URL")
+    throw new Error(`Finvedex did not return a payment URL. Response: ${JSON.stringify(json).slice(0, 300)}`)
   }
 
   return { paymentUrl, raw: json }

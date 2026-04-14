@@ -128,6 +128,7 @@ export async function POST(req: Request) {
     })
     paymentUrl = result.paymentUrl
   } catch (e: any) {
+    console.error("[finvedex order] error:", e?.message)
     return NextResponse.json({ ok: false, error: e?.message || "Failed to create Finvedex order" }, { status: 502 })
   }
 
