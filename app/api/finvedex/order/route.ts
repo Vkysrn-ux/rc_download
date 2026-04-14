@@ -69,9 +69,11 @@ export async function POST(req: Request) {
   }
 
   const requestOrigin = new URL(req.url).origin
-  // Always use the real request origin for the redirect URL so Finvedex
-  // returns to the correct domain (not localhost when APP_BASE_URL is local).
-  const appBaseUrl = requestOrigin
+  const configuredBase = (process.env.APP_BASE_URL || "").replace(/\/$/, "")
+  // Use APP_BASE_URL only when it's a real public domain (not localhost)
+  const appBaseUrl = (configuredBase && !configuredBase.includes("localhost") && !configuredBase.includes("127.0.0.1"))
+    ? configuredBase
+    : requestOrigin
 
   const transactionId = crypto.randomUUID()
   const orderId = makeFinvedexOrderId(transactionId)
