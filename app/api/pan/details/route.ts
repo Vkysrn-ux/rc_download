@@ -8,6 +8,7 @@ import { dbQuery } from "@/lib/server/db"
 import { ExternalApiError } from "@/lib/server/rc-lookup"
 import { WalletError, chargeWalletForDownload } from "@/lib/server/wallet"
 import { getPanDetailsPriceInr, REGISTERED_PAN_DETAILS_PRICE_INR } from "@/lib/pricing"
+import { checkFinvedexOrderStatus, makeFinvedexOrderId } from "@/lib/server/finvedex"
 
 const LookupSchema = z.object({
   panNumber: z.string().min(5).max(32),
@@ -225,10 +226,15 @@ async function verifyGuestPayment(transactionId: string, panNumber: string) {
     [transactionId],
   )
   const txn = rows[0]
-  if (!txn) throw new ExternalApiError(404, "Transaction not found")
+  if (!txn) {
+    const finvedexStatus = await checkFinvedexOrderStatus(makeFinvedexOrderId(transactionId)).catch(() => "pending" as const)
+    if (finvedexStatus !== "completed") throw new ExternalApiError(402, "Payment not completed")
+    return
+  }
   if (txn.user_id) throw new ExternalApiError(403, "Invalid transaction")
   if (txn.type !== "download") throw new ExternalApiError(403, "Invalid transaction")
-  if (txn.payment_method !== "cashfree") throw new ExternalApiError(403, "Invalid transaction")
+  const guestMethods = ["cashfree", "finvedex", "razorpay", "upi"]
+  if (!guestMethods.includes(txn.payment_method || "")) throw new ExternalApiError(403, "Invalid transaction")
   if (txn.status !== "completed") throw new ExternalApiError(402, "Payment not completed")
 
   const expected = getPanDetailsPriceInr(true)
