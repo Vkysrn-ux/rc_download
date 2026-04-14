@@ -134,15 +134,20 @@ export async function POST(req: Request) {
 
   const userId = user?.id ?? null
 
-  await dbQuery(
-    "INSERT INTO transactions (id, user_id, type, amount, status, payment_method, description, registration_number, gateway, gateway_order_id) VALUES (?, ?, ?, ?, 'pending', 'finvedex', ?, ?, 'finvedex', ?)",
-    [transactionId, userId, txnType, txnType === "recharge" ? amountRupees : -amountRupees, description, registrationNumber, orderId],
-  ).catch(async () => {
+  try {
     await dbQuery(
-      "INSERT INTO transactions (id, user_id, type, amount, status, payment_method, description, registration_number) VALUES (?, ?, ?, ?, 'pending', 'finvedex', ?, ?)",
-      [transactionId, userId, txnType, txnType === "recharge" ? amountRupees : -amountRupees, description, registrationNumber],
-    )
-  })
+      "INSERT INTO transactions (id, user_id, type, amount, status, payment_method, description, registration_number, gateway, gateway_order_id) VALUES (?, ?, ?, ?, 'pending', 'finvedex', ?, ?, 'finvedex', ?)",
+      [transactionId, userId, txnType, txnType === "recharge" ? amountRupees : -amountRupees, description, registrationNumber, orderId],
+    ).catch(async () => {
+      await dbQuery(
+        "INSERT INTO transactions (id, user_id, type, amount, status, payment_method, description, registration_number) VALUES (?, ?, ?, ?, 'pending', 'finvedex', ?, ?)",
+        [transactionId, userId, txnType, txnType === "recharge" ? amountRupees : -amountRupees, description, registrationNumber],
+      ).catch(() => {})
+    })
+  } catch {
+    // DB logging is best-effort — don't block payment redirect on DB failure
+    console.error("[finvedex order] failed to save transaction", transactionId)
+  }
 
   return NextResponse.json({ ok: true, paymentUrl, transactionId, orderId, amount: amountRupees })
 }
