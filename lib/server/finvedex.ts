@@ -1,5 +1,29 @@
 import crypto from "crypto"
 
+export async function checkFinvedexOrderStatus(orderId: string): Promise<"completed" | "pending" | "failed"> {
+  const { token } = getFinvedexConfig()
+  try {
+    const body = new URLSearchParams({ user_token: token, order_id: orderId })
+    const res = await fetch("https://finvedex.com/api/check-order-status", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    })
+    const json = await res.json().catch(() => null)
+    console.log("[finvedex check-status] orderId:", orderId, "response:", JSON.stringify(json).slice(0, 200))
+
+    const topStatus = String(json?.status || "").toUpperCase()
+    const txnStatus = String(json?.result?.txnStatus || json?.result?.status || "").toUpperCase()
+    const combined = txnStatus || topStatus
+
+    if (combined === "COMPLETED" || combined === "SUCCESS") return "completed"
+    if (combined === "FAILED" || combined === "FAILURE" || combined === "CANCELLED" || combined === "ERROR") return "failed"
+    return "pending"
+  } catch {
+    return "pending"
+  }
+}
+
 export function getFinvedexConfig() {
   const token = process.env.FINVEDEX_API_TOKEN
   if (!token) throw new Error("Missing required env var: FINVEDEX_API_TOKEN")
