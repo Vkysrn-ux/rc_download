@@ -71,7 +71,7 @@ function PaymentSuccessContent() {
     setApiSteps(["active", "pending"])
 
     eventSourceRef.current?.close()
-    const url = `/api/rc/view/stream?transactionId=${encodeURIComponent(transactionId)}&fresh=1`
+    const url = `/api/rc/view/stream?transactionId=${encodeURIComponent(transactionId)}&registration=${encodeURIComponent(registration)}&fresh=1`
     const source = new EventSource(url)
     eventSourceRef.current = source
 

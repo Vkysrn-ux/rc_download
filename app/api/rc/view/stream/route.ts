@@ -1,5 +1,6 @@
 import { dbQuery } from "@/lib/server/db"
-import { ExternalApiError, lookupRc, storeRcResult, type RcLookupProgressEvent } from "@/lib/server/rc-lookup"
+import { ExternalApiError, lookupRc, normalizeRegistration, storeRcResult, type RcLookupProgressEvent } from "@/lib/server/rc-lookup"
+import { checkFinvedexOrderStatus, makeFinvedexOrderId } from "@/lib/server/finvedex"
 
 const encoder = new TextEncoder()
 
@@ -23,6 +24,7 @@ function providerIndexToStepIndex(providerIndex: number) {
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const transactionId = url.searchParams.get("transactionId") || ""
+  const registrationParam = normalizeRegistration(url.searchParams.get("registration") || "")
   const freshParam = (url.searchParams.get("fresh") || "").trim().toLowerCase()
   const bypassCache = freshParam === "1" || freshParam === "true" || freshParam === "yes"
 
@@ -42,8 +44,35 @@ export async function GET(req: Request) {
           registration_number: string | null
         }>("SELECT id, user_id, type, status, registration_number FROM transactions WHERE id = ? LIMIT 1", [transactionId])
 
-        const txn = txns[0]
-        if (!txn || txn.type !== "download" || !txn.registration_number) {
+        let txn = txns[0]
+
+        // Transaction not in DB — common when DB insert failed after Finvedex payment succeeded.
+        // Verify with Finvedex directly and use the registration from the URL param.
+        if (!txn) {
+          if (!registrationParam) {
+            writeEvent(controller, "server_error", { ok: false, error: "Invalid transaction", status: 404 })
+            return
+          }
+          const orderId = makeFinvedexOrderId(transactionId)
+          const finvedexStatus = await checkFinvedexOrderStatus(orderId).catch(() => "pending" as const)
+          if (finvedexStatus !== "completed") {
+            writeEvent(controller, "server_error", {
+              ok: false,
+              error: "Payment pending. RC will be available after confirmation.",
+              status: 402,
+            })
+            return
+          }
+          // Payment confirmed — insert a completed transaction record so future calls work
+          await dbQuery(
+            "INSERT IGNORE INTO transactions (id, user_id, type, amount, status, payment_method, description, registration_number) VALUES (?, NULL, 'download', 0, 'completed', 'finvedex', ?, ?)",
+            [transactionId, `RC Download - ${registrationParam}`, registrationParam],
+          ).catch(() => {})
+          // Use a synthetic txn so the lookup proceeds
+          txn = { id: transactionId, user_id: null, type: "download", status: "completed", registration_number: registrationParam }
+        }
+
+        if (txn.type !== "download" || !txn.registration_number) {
           writeEvent(controller, "server_error", { ok: false, error: "Invalid transaction", status: 404 })
           return
         }
