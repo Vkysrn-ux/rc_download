@@ -361,8 +361,8 @@ function PaymentConfirmContent() {
     setError("")
     setInfo("")
 
-    if (!registration) {
-      setError("Missing registration number.")
+    if (!purposeRef) {
+      setError("Missing reference number.")
       setLoading(false)
       return
     }
@@ -390,17 +390,22 @@ function PaymentConfirmContent() {
     }
 
     try {
+      const cashfreeBody: Record<string, unknown> = {
+        purpose,
+        guest: isGuest,
+        customerName: isAuthenticated ? user?.name : undefined,
+        customerEmail: isAuthenticated ? user?.email : undefined,
+        customerPhone: effectivePhoneDigits || undefined,
+      }
+      if (purpose === "pan_details") {
+        cashfreeBody.panNumber = pan
+      } else {
+        cashfreeBody.registrationNumber = registration
+      }
       const res = await fetch("/api/cashfree/order", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          purpose: "download",
-          registrationNumber: registration,
-          guest: isGuest,
-          customerName: isAuthenticated ? user?.name : undefined,
-          customerEmail: isAuthenticated ? user?.email : undefined,
-          customerPhone: effectivePhoneDigits || undefined,
-        }),
+        body: JSON.stringify(cashfreeBody),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
