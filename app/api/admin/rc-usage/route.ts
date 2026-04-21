@@ -93,6 +93,7 @@ export async function GET(req: NextRequest) {
   const wantByVehicle = wants("byVehicle")
   const wantByUser = wants("byUser")
   const wantRecent = wants("recent")
+  const wantProviderHealth = wants("providerHealth")
 
   const configuredProviderRefs = new Set(getConfiguredProviderRefs())
   const configuredVariants = getConfiguredVariants()
@@ -387,6 +388,106 @@ export async function GET(req: NextRequest) {
       )
     : []
 
+  // Per-provider health: success/failure counts + last 20 failures with reasons
+  const providerHealth: {
+    providerRef: string
+    label: string
+    variant: string
+    baseUrl: string | null
+    total: number
+    successes: number
+    failures: number
+    recentFailures: { registrationNumber: string; httpStatus: number | null; errorMessage: string | null; timestamp: string }[]
+  }[] = []
+
+  if (wantProviderHealth) {
+    try {
+      const statRows = await dbQuery<{
+        provider_ref: string | null
+        variant: string
+        total: string | number
+        successes: string | number
+        failures: string | number
+      }>(
+        `SELECT provider_ref, variant,
+                COUNT(*) AS total,
+                SUM(outcome = 'success') AS successes,
+                SUM(outcome = 'failure') AS failures
+         FROM rc_api_calls
+         GROUP BY provider_ref, variant`,
+      )
+
+      const failureRows = await dbQuery<{
+        provider_ref: string | null
+        registration_number: string
+        http_status: number | null
+        error_message: string | null
+        created_at: string
+      }>(
+        `SELECT provider_ref, registration_number, http_status, error_message, created_at
+         FROM rc_api_calls
+         WHERE outcome = 'failure'
+         ORDER BY created_at DESC
+         LIMIT 200`,
+      )
+
+      const failuresByProvider = new Map<string, typeof failureRows>()
+      for (const row of failureRows) {
+        const key = row.provider_ref ? String(row.provider_ref) : "unknown"
+        const list = failuresByProvider.get(key) ?? []
+        list.push(row)
+        failuresByProvider.set(key, list)
+      }
+
+      const statsByProvider = new Map<string, { total: number; successes: number; failures: number; variant: string }>()
+      for (const row of statRows) {
+        const key = row.provider_ref ? String(row.provider_ref) : "unknown"
+        const existing = statsByProvider.get(key)
+        if (existing) {
+          existing.total += Number(row.total)
+          existing.successes += Number(row.successes)
+          existing.failures += Number(row.failures)
+        } else {
+          statsByProvider.set(key, {
+            total: Number(row.total),
+            successes: Number(row.successes),
+            failures: Number(row.failures),
+            variant: String(row.variant || "unknown"),
+          })
+        }
+      }
+
+      // Show configured providers first, then any others seen in logs
+      const allRefs = new Set([...configuredProviderRefs, ...statsByProvider.keys()])
+      for (const ref of allRefs) {
+        if (ref === "unknown") continue
+        const baseUrl = resolveProviderBaseUrl(ref)
+        const variant = classifyRcVariant(baseUrl) || statsByProvider.get(ref)?.variant || "unknown"
+        const stats = statsByProvider.get(ref) ?? { total: 0, successes: 0, failures: 0, variant }
+        const failures = (failuresByProvider.get(ref) ?? []).slice(0, 20)
+        const label = `Server ${ref}${baseUrl ? ` (${variant})` : ""}`
+        providerHealth.push({
+          providerRef: ref,
+          label,
+          variant,
+          baseUrl,
+          total: stats.total,
+          successes: stats.successes,
+          failures: stats.failures,
+          recentFailures: failures.map((f) => ({
+            registrationNumber: f.registration_number,
+            httpStatus: f.http_status,
+            errorMessage: f.error_message,
+            timestamp: f.created_at,
+          })),
+        })
+      }
+      providerHealth.sort((a, b) => Number(a.providerRef) - Number(b.providerRef))
+    } catch {
+      // return empty
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     ...(wantApiCalls ? { apiCalls } : {}),
@@ -419,6 +520,7 @@ export async function GET(req: NextRequest) {
           byUser: byUserStats,
         }
       : {}),
+    ...(wantProviderHealth ? { providerHealth } : {}),
     ...(wantRecent
       ? {
           recent: recent.map((r) => ({

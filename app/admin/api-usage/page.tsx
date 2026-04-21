@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { FileText, ArrowLeft, LogOut, Cloud, RefreshCcw, Search, ChevronDown, ChevronRight } from "lucide-react"
+import { FileText, ArrowLeft, LogOut, Cloud, RefreshCcw, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
 
 type RcUsageResponse = {
   ok: boolean
@@ -46,6 +46,16 @@ type RcUsageResponse = {
     providerVariant?: string | null
     timestamp: string
     user: { id: string | null; name: string; email: string }
+  }[]
+  providerHealth?: {
+    providerRef: string
+    label: string
+    variant: string
+    baseUrl: string | null
+    total: number
+    successes: number
+    failures: number
+    recentFailures: { registrationNumber: string; httpStatus: number | null; errorMessage: string | null; timestamp: string }[]
   }[]
 }
 
@@ -158,6 +168,8 @@ export default function AdminApiUsagePage() {
   const [byVehicle, setByVehicle] = useState<RcUsageResponse["byVehicle"]>([])
   const [byUser, setByUser] = useState<RcUsageResponse["byUser"]>([])
   const [recent, setRecent] = useState<RcUsageResponse["recent"]>([])
+  const [providerHealth, setProviderHealth] = useState<RcUsageResponse["providerHealth"]>([])
+  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set())
   const [topVehiclesOpen, setTopVehiclesOpen] = useState(false)
   const [loadingTopVehicles, setLoadingTopVehicles] = useState(false)
   const [topVehiclesLoaded, setTopVehiclesLoaded] = useState(false)
@@ -175,7 +187,7 @@ export default function AdminApiUsagePage() {
     setLoading(true)
     setError("")
     const res = await fetch(
-      "/api/admin/rc-usage?include=apiCalls,counts,externalByVariant,externalByProvider,cacheByVariant,cacheByProvider,byProvider,byUser,recent",
+      "/api/admin/rc-usage?include=apiCalls,counts,externalByVariant,externalByProvider,cacheByVariant,cacheByProvider,byProvider,byUser,recent,providerHealth",
     )
     const json = (await res.json().catch(() => ({}))) as RcUsageResponse
     if (!res.ok || !json.ok) {
@@ -194,6 +206,7 @@ export default function AdminApiUsagePage() {
     setTopVehiclesLoaded(false)
     setByUser(json.byUser || [])
     setRecent(json.recent || [])
+    setProviderHealth(json.providerHealth || [])
     setLoading(false)
   }
 
@@ -335,6 +348,99 @@ export default function AdminApiUsagePage() {
                </Card>
              ))}
            </div>
+
+          {/* Provider Health */}
+          {(providerHealth || []).length > 0 && (
+            <Card className="shadow-md">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl">Provider Health</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(providerHealth || []).map((p) => {
+                  const successRate = p.total > 0 ? Math.round((p.successes / p.total) * 100) : null
+                  const isHealthy = p.failures === 0
+                  const isDegraded = !isHealthy && p.successes > 0
+                  const isDown = !isHealthy && p.successes === 0 && p.total > 0
+                  const neverUsed = p.total === 0
+                  const expanded = expandedProviders.has(p.providerRef)
+                  return (
+                    <div key={p.providerRef} className="rounded-lg border overflow-hidden">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-muted/30 transition-colors"
+                        onClick={() => setExpandedProviders((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(p.providerRef)) next.delete(p.providerRef)
+                          else next.add(p.providerRef)
+                          return next
+                        })}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {neverUsed ? (
+                            <AlertTriangle className="h-5 w-5 text-muted-foreground shrink-0" />
+                          ) : isHealthy ? (
+                            <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                          ) : isDown ? (
+                            <XCircle className="h-5 w-5 text-red-600 shrink-0" />
+                          ) : (
+                            <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-sm">Server {p.providerRef} — {p.variant}</div>
+                            <div className="text-xs text-muted-foreground truncate">{p.baseUrl || "URL not configured"}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 text-xs">
+                          {neverUsed ? (
+                            <Badge variant="outline">Never used</Badge>
+                          ) : (
+                            <>
+                              <Badge variant="default" className="bg-green-600">{p.successes} ok</Badge>
+                              <Badge variant="destructive">{p.failures} failed</Badge>
+                              {successRate !== null && (
+                                <span className="text-muted-foreground">{successRate}% success</span>
+                              )}
+                            </>
+                          )}
+                          {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                        </div>
+                      </button>
+
+                      {expanded && (
+                        <div className="border-t bg-muted/20 px-4 py-3">
+                          {p.recentFailures.length === 0 ? (
+                            <div className="text-sm text-muted-foreground">
+                              {neverUsed ? "This provider has not been called yet." : "No recent failures — provider is healthy."}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                                Recent failures (last {p.recentFailures.length})
+                              </div>
+                              {p.recentFailures.map((f, i) => (
+                                <div key={i} className="rounded border bg-red-50 border-red-200 px-3 py-2 text-xs space-y-1">
+                                  <div className="flex items-center justify-between gap-4">
+                                    <span className="font-mono font-medium">{f.registrationNumber}</span>
+                                    <span className="text-muted-foreground">{formatIstTimestamp(f.timestamp)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-red-700">
+                                    {f.httpStatus != null && (
+                                      <span className="font-semibold">HTTP {f.httpStatus}</span>
+                                    )}
+                                    <span className="break-all">{f.errorMessage || "Unknown error"}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          )}
 
            <Card className="shadow-md">
              <CardHeader className="pb-3">
