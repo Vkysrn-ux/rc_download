@@ -9,7 +9,6 @@
     "start": "next start"
   },
   "dependencies": {
-    "@cashfreepayments/cashfree-js": "^1.0.5",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
@@ -46,8 +45,6 @@
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
-    "firebase": "^12.7.0",
-    "firebase-admin": "^13.6.0",
     "html2canvas": "1.4.1",
     "input-otp": "1.4.1",
     "json-bigint": "^1.0.0",

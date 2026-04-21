@@ -1,47 +1,21 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { loadRazorpayCheckout } from "@/lib/razorpay-client"
-import { loadCashfree } from "@/lib/cashfree-client"
-import { shareManualPaymentProof } from "@/lib/manual-payment-proof"
 import { MIN_WALLET_RECHARGE_INR } from "@/lib/pricing"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Wallet, QrCode, Smartphone, CreditCard, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Wallet, CreditCard, CheckCircle2 } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 const PRESET_AMOUNTS = [50, 100, 200, 500, 1000]
 
 type PaymentConfig = {
-  upiId: string
-  payeeName: string
-  qrUrl: string
-  autoApprove: boolean
-  enableRazorpay: boolean
-  enableManualUpi: boolean
-  enableCashfree: boolean
   enableFinvedex: boolean
-  cashfreeMode: "sandbox" | "production"
-}
-
-function clampUpiText(value: string, maxLength: number) {
-  return (value || "").trim().slice(0, maxLength)
-}
-
-function buildUpiUri(upiId: string, payeeName: string, amount: number, note: string) {
-  const params = new URLSearchParams({
-    pa: upiId,
-    pn: clampUpiText(payeeName || "Vehicle RC Download", 25),
-    am: amount.toFixed(2),
-    cu: "INR",
-    tn: clampUpiText(note, 50),
-  })
-  return `upi://pay?${params.toString()}`
 }
 
 function phoneDigits(value: string) {
@@ -51,22 +25,15 @@ function phoneDigits(value: string) {
 export default function WalletRechargePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, isAuthenticated, refreshUser } = useAuth()
+  const { user, isAuthenticated } = useAuth()
 
   const [amount, setAmount] = useState("")
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
   const [config, setConfig] = useState<PaymentConfig | null>(null)
-  const [qrDataUrl, setQrDataUrl] = useState<string>("")
   const [error, setError] = useState("")
-  const [manualTxn, setManualTxn] = useState<{ transactionId: string; status: string } | null>(null)
-  const [sharing, setSharing] = useState(false)
-  const [shareError, setShareError] = useState("")
-  const [cashfreePhone, setCashfreePhone] = useState("")
   const [finvedexPhone, setFinvedexPhone] = useState("")
-  const proofRef = useRef<HTMLDivElement | null>(null)
   const amountPrefillRef = useRef(false)
 
   const savedPhoneDigits = phoneDigits(user?.phone || "")
@@ -93,67 +60,14 @@ export default function WalletRechargePage() {
   }, [searchParams])
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(
-        window.innerWidth < 768 ||
-          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
-      )
-    }
-    checkMobile()
-    window.addEventListener("resize", checkMobile)
-    return () => window.removeEventListener("resize", checkMobile)
-  }, [])
-
-  useEffect(() => {
     fetch("/api/payment/config")
       .then((r) => r.json())
       .then((c) => setConfig(c))
-      .catch(() =>
-        setConfig({
-          upiId: "",
-          payeeName: "",
-          qrUrl: "",
-          autoApprove: false,
-          enableRazorpay: false,
-          enableManualUpi: false,
-          enableCashfree: false,
-          enableFinvedex: false,
-          cashfreeMode: "sandbox",
-        }),
-      )
+      .catch(() => setConfig({ enableFinvedex: false }))
   }, [])
 
-  const enableRazorpay = Boolean(config?.enableRazorpay)
-  const enableManualUpi = Boolean(config?.enableManualUpi)
-  const enableCashfree = Boolean(config?.enableCashfree)
   const enableFinvedex = Boolean(config?.enableFinvedex)
-  const anyPaymentEnabled = enableCashfree || enableRazorpay || enableManualUpi || enableFinvedex
-
-  const numericAmount = useMemo(() => Number.parseFloat(amount || "0"), [amount])
-
-  const upiUri = useMemo(() => {
-    if (!config?.upiId || !numericAmount) return ""
-    return buildUpiUri(config.upiId, config.payeeName, numericAmount, "Wallet Recharge")
-  }, [config, numericAmount])
-
-  useEffect(() => {
-    let cancelled = false
-    async function generate() {
-      setQrDataUrl("")
-      if (!upiUri) return
-      try {
-        const QRCode = (await import("qrcode")).default
-        const url = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: "M", margin: 2, width: 320 })
-        if (!cancelled) setQrDataUrl(url)
-      } catch {
-        if (!cancelled) setQrDataUrl("")
-      }
-    }
-    generate()
-    return () => {
-      cancelled = true
-    }
-  }, [upiUri, config?.qrUrl])
+  const numericAmount = Number.parseFloat(amount || "0")
 
   const handlePaymentClick = () => {
     setError("")
@@ -162,220 +76,11 @@ export default function WalletRechargePage() {
       setError(`Minimum recharge amount is INR ${MIN_WALLET_RECHARGE_INR}.`)
       return
     }
-    if (config && !anyPaymentEnabled) {
+    if (config && !enableFinvedex) {
       setError("Wallet recharge is temporarily unavailable while we upgrade payments.")
       return
     }
-    setManualTxn(null)
-    setShareError("")
-    if (enableCashfree && hasSavedPhone) {
-      void handleCashfreeRecharge()
-      return
-    }
     setShowPaymentModal(true)
-  }
-
-  const finishRechargeFlow = (status: string) => {
-    setShowPaymentModal(false)
-    setSuccess(true)
-
-    setTimeout(() => {
-      router.push(status === "completed" ? "/dashboard" : "/transactions")
-    }, 1200)
-  }
-
-  const sendWhatsAppProof = async (transactionId?: string) => {
-    setShareError("")
-    const adminNumber = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP_NUMBER || ""
-    if (!adminNumber) {
-      setShareError("Admin WhatsApp number is not configured.")
-      return
-    }
-
-    setSharing(true)
-    const now = new Date().toLocaleString()
-    const message = [
-      "Manual wallet recharge",
-      `User: ${user?.name || "-"}`,
-      `User ID: ${user?.id || "-"}`,
-      `Amount: ₹${numericAmount}`,
-      transactionId ? `Transaction ID: ${transactionId}` : "",
-      `Time: ${now}`,
-    ]
-      .filter(Boolean)
-      .join("\n")
-
-    const result = await shareManualPaymentProof({
-      adminNumber,
-      message,
-      screenshotEl: proofRef.current,
-      filename: transactionId ? `recharge-${transactionId}.png` : undefined,
-    })
-
-    setSharing(false)
-    if (!result.ok) {
-      setShareError("Couldn't open WhatsApp. Please send the screenshot manually.")
-    }
-  }
-
-  const handleConfirmPaid = async () => {
-    if (numericAmount < MIN_WALLET_RECHARGE_INR) {
-      setError(`Minimum recharge amount is INR ${MIN_WALLET_RECHARGE_INR}.`)
-      return
-    }
-    setLoading(true)
-    setError("")
-    const res = await fetch("/api/wallet/recharge", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amount: numericAmount }),
-    })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      setError(json?.error || "Failed to create recharge request")
-      setLoading(false)
-      return
-    }
-
-    await refreshUser()
-    setLoading(false)
-    setManualTxn({ transactionId: json?.transactionId || "", status: json?.status || "pending" })
-    await sendWhatsAppProof(json?.transactionId).catch(() => {})
-  }
-
-  const handleRazorpayRecharge = async () => {
-    if (numericAmount < MIN_WALLET_RECHARGE_INR) {
-      setError(`Minimum recharge amount is INR ${MIN_WALLET_RECHARGE_INR}.`)
-      return
-    }
-    setLoading(true)
-    setError("")
-
-    try {
-      const res = await fetch("/api/razorpay/order", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ purpose: "recharge", amount: numericAmount }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(json?.error || "Unable to start payment. Please try again.")
-        setLoading(false)
-        return
-      }
-
-      await loadRazorpayCheckout()
-      const RazorpayCtor = (window as any).Razorpay
-      if (!RazorpayCtor) throw new Error("Razorpay failed to load")
-
-      const rzp = new RazorpayCtor({
-        key: json.keyId,
-        amount: json.amount,
-        currency: json.currency,
-        name: json.name,
-        description: json.description,
-        order_id: json.orderId,
-        prefill: json.prefill ?? undefined,
-        modal: {
-          ondismiss: () => setLoading(false),
-        },
-        handler: async (response: any) => {
-          try {
-            setLoading(true)
-            const verifyRes = await fetch("/api/razorpay/verify", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ transactionId: json.transactionId, ...response }),
-            })
-            const verifyJson = await verifyRes.json().catch(() => ({}))
-            if (!verifyRes.ok) {
-              setError(verifyJson?.error || "Payment verification failed. Please contact support.")
-              setLoading(false)
-              return
-            }
-
-            await refreshUser()
-            setLoading(false)
-            setShowPaymentModal(false)
-            setSuccess(true)
-
-            setTimeout(() => {
-              router.push("/dashboard")
-            }, 1200)
-          } catch {
-            setError("Payment verification failed. Please try again.")
-            setLoading(false)
-          }
-        },
-      })
-
-      rzp.on("payment.failed", (resp: any) => {
-        const msg = resp?.error?.description || resp?.error?.reason || "Payment failed. Please try again."
-        setError(msg)
-        setLoading(false)
-      })
-
-      rzp.open()
-    } catch (e: any) {
-      setError(e?.message || "Unable to start payment. Please try again.")
-      setLoading(false)
-    }
-  }
-
-  const handleCashfreeRecharge = async () => {
-    if (numericAmount < MIN_WALLET_RECHARGE_INR) {
-      setError(`Minimum recharge amount is INR ${MIN_WALLET_RECHARGE_INR}.`)
-      return
-    }
-    setLoading(true)
-    setError("")
-
-    if (!enableCashfree) {
-      setError("Cashfree is not enabled.")
-      setLoading(false)
-      return
-    }
-
-    const effectivePhoneDigits = hasSavedPhone ? savedPhoneDigits : phoneDigits(cashfreePhone)
-    const digits = effectivePhoneDigits
-    if (digits.length < 10 || digits.length > 15) {
-      setError("Please enter a valid phone number.")
-      setLoading(false)
-      return
-    }
-
-    try {
-      const res = await fetch("/api/cashfree/order", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          purpose: "recharge",
-          amount: numericAmount,
-          customerPhone: effectivePhoneDigits || undefined,
-          customerEmail: user?.email || undefined,
-          customerName: user?.name || undefined,
-        }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(json?.error || "Unable to start payment. Please try again.")
-        setLoading(false)
-        return
-      }
-
-      const cashfree = await loadCashfree(json?.mode || config?.cashfreeMode || "sandbox")
-      if (!cashfree) throw new Error("Cashfree failed to load")
-
-      await cashfree.checkout(
-        {
-          paymentSessionId: json.paymentSessionId,
-          redirectTarget: "_self",
-        } as any,
-      )
-    } catch (e: any) {
-      setError(e?.message || "Unable to start payment. Please try again.")
-      setLoading(false)
-    }
   }
 
   const handleFinvedexRecharge = async () => {
@@ -386,7 +91,7 @@ export default function WalletRechargePage() {
     setLoading(true)
     setError("")
 
-    const phone = (finvedexPhone || savedPhoneDigits || "").replace(/\D/g, "")
+    const phone = phoneDigits(finvedexPhone) || savedPhoneDigits
     if (!phone || phone.length < 10 || phone.length > 15) {
       setError("Please enter a valid 10-digit mobile number.")
       setLoading(false)
@@ -439,10 +144,8 @@ export default function WalletRechargePage() {
                 <div className="mx-auto p-3 bg-green-100 rounded-full w-fit">
                   <Wallet className="h-8 w-8 text-green-700" />
                 </div>
-                <div className="text-xl font-bold text-green-900">Recharge request created</div>
-                <div className="text-sm text-green-800">
-                  {config?.autoApprove ? "Wallet updated." : "Pending confirmation. You can track it in Transactions."}
-                </div>
+                <div className="text-xl font-bold text-green-900">Recharge initiated</div>
+                <div className="text-sm text-green-800">Your wallet will be updated after payment confirmation.</div>
               </CardContent>
             </Card>
           ) : (
@@ -460,7 +163,7 @@ export default function WalletRechargePage() {
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
-                {config && !anyPaymentEnabled && (
+                {config && !enableFinvedex && (
                   <Alert className="bg-blue-50 border-blue-200">
                     <AlertDescription className="text-blue-900">
                       Wallet recharge is temporarily unavailable while we upgrade payments.
@@ -509,13 +212,11 @@ export default function WalletRechargePage() {
                     loading ||
                     !numericAmount ||
                     numericAmount < MIN_WALLET_RECHARGE_INR ||
-                    (config !== null && !anyPaymentEnabled)
+                    (config !== null && !enableFinvedex)
                   }
                 >
                   <CreditCard className="h-5 w-5 mr-3" />
-                  {loading && enableCashfree && hasSavedPhone
-                    ? "Opening Cashfree..."
-                    : `Continue to Pay ₹${amount || "0"}`}
+                  {`Continue to Pay ₹${amount || "0"}`}
                 </Button>
               </CardFooter>
             </Card>
@@ -526,12 +227,8 @@ export default function WalletRechargePage() {
       <Dialog
         open={showPaymentModal}
         onOpenChange={(open) => {
+          if (!open) setLoading(false)
           setShowPaymentModal(open)
-          if (!open) {
-            setManualTxn(null)
-            setShareError("")
-            setSharing(false)
-          }
         }}
       >
         <DialogContent className="sm:max-w-md">
@@ -540,195 +237,46 @@ export default function WalletRechargePage() {
             <DialogDescription className="text-base">Pay ₹{amount} to recharge your wallet</DialogDescription>
           </DialogHeader>
 
-          {!manualTxn && (enableCashfree || enableRazorpay || enableFinvedex) && (
-            <div className="space-y-3">
-              {enableFinvedex && (
-                <div className="space-y-2">
-                  {!hasSavedPhone ? (
-                    <div className="space-y-1">
-                      <Label htmlFor="finvedexPhone">Mobile Number (required)</Label>
-                      <Input
-                        id="finvedexPhone"
-                        inputMode="tel"
-                        placeholder="Enter 10-digit mobile number"
-                        value={finvedexPhone}
-                        onChange={(e) => setFinvedexPhone(e.target.value)}
-                        className="h-11"
-                      />
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        <span>
-                          Using saved mobile: <span className="font-mono">{maskedSavedPhone}</span>
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <Button
-                    onClick={handleFinvedexRecharge}
-                    disabled={loading || !numericAmount || numericAmount < MIN_WALLET_RECHARGE_INR}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {loading ? "Opening..." : "Pay with Finvedex"}
-                  </Button>
-                </div>
-              )}
-              {enableCashfree && (
-                <div className="space-y-2">
-                  {!hasSavedPhone ? (
-                    <div className="space-y-1">
-                      <Label htmlFor="cashfreePhone">Phone (needed for Cashfree)</Label>
-                      <Input
-                        id="cashfreePhone"
-                        inputMode="tel"
-                        placeholder="Enter phone number"
-                        value={cashfreePhone}
-                        onChange={(e) => setCashfreePhone(e.target.value)}
-                        className="h-11"
-                      />
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        <span>
-                          Using saved mobile for Cashfree: <span className="font-mono">{maskedSavedPhone}</span>
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <Button
-                    onClick={handleCashfreeRecharge}
-                    disabled={loading || !numericAmount || numericAmount < MIN_WALLET_RECHARGE_INR}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {loading ? "Opening..." : "Pay with Cashfree"}
-                  </Button>
-                </div>
-              )}
-              {enableRazorpay && (
-                <Button
-                  onClick={handleRazorpayRecharge}
-                  disabled={loading || !numericAmount || numericAmount < MIN_WALLET_RECHARGE_INR}
-                  className="w-full"
-                  size="lg"
-                >
-                  {loading ? "Opening..." : "Pay with Razorpay"}
-                </Button>
-              )}
-              {enableManualUpi && (enableCashfree || enableRazorpay || enableFinvedex) && <div className="text-xs text-muted-foreground text-center">or pay via UPI (manual)</div>}
-            </div>
-          )}
-
-          {enableManualUpi ? (
-            !config?.upiId ? (
-            <Alert variant="destructive">
-              <AlertDescription>UPI is not configured. Set `PAYMENT_UPI_ID` in your environment.</AlertDescription>
-            </Alert>
-          ) : (
+          {enableFinvedex ? (
             <div className="space-y-4 py-2">
-              <div ref={proofRef} className="space-y-4">
+              {hasSavedPhone ? (
                 <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                  <div className="font-medium">UPI ID</div>
-                  <div className="font-mono break-all">{config.upiId}</div>
-                  {config.payeeName && <div className="text-muted-foreground mt-1">Payee: {config.payeeName}</div>}
-                </div>
-
-                {isMobile ? (
-                  <Button className="w-full" size="lg" asChild>
-                    <a href={upiUri || "#"}>Open UPI App</a>
-                  </Button>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <QrCode className="h-4 w-4" />
-                      <span>Scan QR in any UPI app</span>
-                    </div>
-                    <div className="flex items-center justify-center">
-                      {qrDataUrl ? (
-                        <img
-                          src={qrDataUrl}
-                          alt="UPI QR"
-                          className="w-64 h-64 object-contain border rounded-lg bg-white"
-                        />
-                      ) : config.qrUrl ? (
-                        <img
-                          src={config.qrUrl}
-                          alt="UPI QR"
-                          className="w-64 h-64 object-contain border rounded-lg bg-white"
-                        />
-                      ) : (
-                        <div className="w-64 h-64 border rounded-lg bg-white flex items-center justify-center text-muted-foreground">
-                          <Smartphone className="h-6 w-6" />
-                        </div>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <span>
+                      Using saved mobile: <span className="font-mono">{maskedSavedPhone}</span>
+                    </span>
                   </div>
-                )}
-
-                <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
-                  <div className="font-medium">Payment Details</div>
-                  <div className="text-muted-foreground">Amount: ₹{numericAmount}</div>
-                  <div className="text-muted-foreground">User: {user?.name || "-"}</div>
-                  <div className="text-muted-foreground">User ID: {user?.id || "-"}</div>
-                  {manualTxn?.transactionId && (
-                    <div className="text-muted-foreground">Transaction ID: {manualTxn.transactionId}</div>
-                  )}
-                </div>
-              </div>
-
-              {shareError && (
-                <Alert variant="destructive">
-                  <AlertDescription>{shareError}</AlertDescription>
-                </Alert>
-              )}
-
-              {manualTxn ? (
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => sendWhatsAppProof(manualTxn.transactionId)}
-                    disabled={sharing}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {sharing ? "Opening WhatsApp..." : "Send Screenshot to WhatsApp"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full bg-transparent"
-                    onClick={() => finishRechargeFlow(manualTxn.status)}
-                  >
-                    Continue
-                  </Button>
                 </div>
               ) : (
-                <Button
-                  onClick={handleConfirmPaid}
-                  disabled={loading || !numericAmount || numericAmount < MIN_WALLET_RECHARGE_INR}
-                  className="w-full"
-                  size="lg"
-                >
-                  {loading ? "Saving..." : "I've Paid (Manual)"}
-                </Button>
+                <div className="space-y-1">
+                  <Label htmlFor="finvedexPhone">Mobile Number (required)</Label>
+                  <Input
+                    id="finvedexPhone"
+                    inputMode="tel"
+                    placeholder="Enter 10-digit mobile number"
+                    value={finvedexPhone}
+                    onChange={(e) => setFinvedexPhone(e.target.value)}
+                    className="h-11"
+                  />
+                </div>
               )}
-              {!config.autoApprove && (
-                <p className="text-xs text-muted-foreground">
-                  Recharge will show as pending until confirmed by admin.
-                </p>
-              )}
+              <Button
+                onClick={handleFinvedexRecharge}
+                disabled={loading || !numericAmount || numericAmount < MIN_WALLET_RECHARGE_INR}
+                className="w-full"
+                size="lg"
+              >
+                {loading ? "Opening..." : "Pay with Finvedex"}
+              </Button>
             </div>
-          )
-          ) : !enableCashfree && !enableRazorpay && !enableFinvedex ? (
+          ) : (
             <Alert className="bg-blue-50 border-blue-200">
               <AlertDescription className="text-blue-900">
                 Wallet recharge is temporarily unavailable while we upgrade payments.
               </AlertDescription>
             </Alert>
-          ) : null}
+          )}
         </DialogContent>
       </Dialog>
     </div>

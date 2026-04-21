@@ -34,10 +34,8 @@ type Service = {
 
 type ServiceCatalogProps = {
   rcRegistration?: string
-  rcWhatsapp?: string
   rcResult?: string | null
   onRcRegistrationChange?: (value: string) => void
-  onRcWhatsappChange?: (value: string) => void
   onRcPay?: () => void
 }
 
@@ -47,23 +45,12 @@ function normalizeRegistration(value: string) {
 
 export default function ServiceCatalog({
   rcRegistration: rcRegistrationProp,
-  rcWhatsapp: rcWhatsappProp,
   rcResult: rcResultProp,
   onRcRegistrationChange,
-  onRcWhatsappChange,
   onRcPay,
 }: ServiceCatalogProps) {
   const router = useRouter()
   const { isAuthenticated } = useAuth()
-
-  const defaultGuestPhone = useMemo(() => {
-    const raw =
-      (process.env.NEXT_PUBLIC_HELPDESK_WHATSAPP_NUMBER || process.env.NEXT_PUBLIC_ADMIN_WHATSAPP_NUMBER || "").trim()
-    const digits = raw.replace(/\D/g, "")
-    if (digits.length === 10) return `+91${digits}`
-    if (digits.length >= 10 && digits.length <= 15) return `+${digits}`
-    return "+91"
-  }, [])
 
   const rcGuestPrice = GUEST_RC_DOWNLOAD_PRICE_INR
   const rcRegisteredPrice = REGISTERED_RC_DOWNLOAD_PRICE_INR
@@ -125,10 +112,8 @@ export default function ServiceCatalog({
   const [openServiceId, setOpenServiceId] = useState<ServiceId | null>("rc_download")
 
   const [rcRegistrationInternal, setRcRegistrationInternal] = useState("")
-  const [rcWhatsappInternal, setRcWhatsappInternal] = useState("+91")
   const [rcResultInternal, setRcResultInternal] = useState<string | null>(null)
 
-  const guestPhone = defaultGuestPhone
   const [rcToMobileRegistration, setRcToMobileRegistration] = useState("")
   const [rcToMobileLoading, setRcToMobileLoading] = useState(false)
   const [rcToMobileError, setRcToMobileError] = useState("")
@@ -149,11 +134,7 @@ export default function ServiceCatalog({
   const ownerHistoryAutoStartedRef = useRef(false)
 
   const rcRegistration = rcRegistrationProp ?? rcRegistrationInternal
-  const rcWhatsapp = rcWhatsappProp ?? rcWhatsappInternal
   const rcResult = rcResultProp ?? rcResultInternal
-
-  const guestPhoneDigits = (guestPhone || "").replace(/\D/g, "")
-  const guestPhoneValid = guestPhoneDigits.length >= 10 && guestPhoneDigits.length <= 15
 
   useEffect(() => {
     if (rcResultProp !== undefined) return
@@ -333,49 +314,6 @@ export default function ServiceCatalog({
       setTimeout(() => void fetchOwnerHistory({ transactionId, reg: normalized }), 0)
     }
   }, [])
-
-  const handleRcPayInternal = async () => {
-    const registration = normalizeRegistration(rcRegistration)
-    if (!registration) {
-      setRcResultInternal("Enter vehicle registration to continue.")
-      return
-    }
-
-    const digitsOnly = (rcWhatsapp || "").replace(/\D/g, "")
-    if (digitsOnly.length < 10 || digitsOnly.length > 15) {
-      setRcResultInternal("Please enter a valid phone number (with country code).")
-      return
-    }
-
-    setRcResultInternal("Starting payment...")
-    try {
-      const res = await fetch("/api/cashfree/order", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          purpose: "download",
-          registrationNumber: registration,
-          guest: true,
-          customerPhone: rcWhatsapp,
-        }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        const msg = json?.error || "Unable to start payment"
-        setRcResultInternal(String(msg))
-        return
-      }
-
-      const mode = json?.mode || "sandbox"
-      const loader = await import("@/lib/cashfree-client")
-      const cashfree = await loader.loadCashfree(mode)
-      if (!cashfree) throw new Error("Cashfree failed to load")
-
-      await cashfree.checkout({ paymentSessionId: json.paymentSessionId, redirectTarget: "_self" } as any)
-    } catch (e: any) {
-      setRcResultInternal(e?.message || "Payment failed")
-    }
-  }
 
   const handleRcPrimaryAction = () => {
     if (isAuthenticated) {
