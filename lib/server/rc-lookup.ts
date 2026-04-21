@@ -281,8 +281,21 @@ function getRcProvidersFromEnv(maxProviders = 4): RcProvider[] {
     const authScheme = authSchemeRaw === undefined ? "Bearer" : authSchemeRaw.trim()
     const payloadField = (readIndexedEnv("RC_API_PAYLOAD_FIELD", index) || "id_number").trim() || "id_number"
     const method = normalizeHttpMethod(readIndexedEnv("RC_API_METHOD", index))
-    const extraHeaders = parseJsonRecord(readIndexedEnv("RC_API_HEADERS", index), `RC_API_HEADERS${suffix}`)
-    const extraParams = parseJsonRecord(readIndexedEnv("RC_API_EXTRA_PARAMS", index), `RC_API_EXTRA_PARAMS${suffix}`)
+    const extraHeadersFromJson = parseJsonRecord(readIndexedEnv("RC_API_HEADERS", index), `RC_API_HEADERS${suffix}`)
+    // RC_API_CLIENT_SECRET_N is a flat alternative to putting x-client-secret inside RC_API_HEADERS_N JSON.
+    // JSON values can get mangled by Docker/Coolify env var handling; flat strings are always safe.
+    const clientSecretFlat = (readIndexedEnv("RC_API_CLIENT_SECRET", index) || "").trim()
+    const extraHeaders: Record<string, string> | null =
+      clientSecretFlat
+        ? { ...(extraHeadersFromJson ?? {}), "x-client-secret": clientSecretFlat }
+        : extraHeadersFromJson
+    const extraParamsFromJson = parseJsonRecord(readIndexedEnv("RC_API_EXTRA_PARAMS", index), `RC_API_EXTRA_PARAMS${suffix}`)
+    // RC_API_VERIFICATION_ID_N is a flat alternative to {"verification_id":"AUTO"} inside RC_API_EXTRA_PARAMS_N JSON.
+    const verificationIdFlat = (readIndexedEnv("RC_API_VERIFICATION_ID", index) || "").trim()
+    const extraParams: Record<string, string> | null =
+      verificationIdFlat
+        ? { ...(extraParamsFromJson ?? {}), verification_id: verificationIdFlat }
+        : extraParamsFromJson
     const signaturePublicKeyPathRaw = (readIndexedEnv("RC_API_SIGNATURE_PUBLIC_KEY_PATH", index) || "").trim()
     const signaturePublicKeyInlineRaw = (readIndexedEnv("RC_API_SIGNATURE_PUBLIC_KEY", index) || "").trim()
     let signaturePublicKeyPem = signaturePublicKeyInlineRaw || null
