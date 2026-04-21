@@ -30,6 +30,8 @@ export async function GET(req: Request) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Prevent browser EventSource from auto-reconnecting after the stream closes
+      controller.enqueue(encoder.encode("retry: 9999999\n\n"))
       try {
         if (!transactionId) {
           writeEvent(controller, "server_error", { ok: false, error: "Missing transactionId", status: 400 })
