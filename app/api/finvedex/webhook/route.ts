@@ -78,6 +78,14 @@ export async function POST(req: Request) {
 
   console.log(`[finvedex webhook] approved txn ${txn.id} order ${orderId} gateway_txn ${txnId}`)
 
+  // Fulfill any pending WhatsApp request linked to this order
+  try {
+    const { fulfillWhatsappPending } = await import("@/lib/server/whatsapp/bot")
+    await fulfillWhatsappPending(orderId)
+  } catch (err) {
+    console.error("[finvedex webhook] WhatsApp fulfillment error:", err)
+  }
+
   return NextResponse.json({ ok: true })
 }
 

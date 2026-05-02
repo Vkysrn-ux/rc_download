@@ -71,25 +71,27 @@ function generateNumericReferenceId() {
   return `${Date.now()}${random}`
 }
 
+function tryJsonParse(raw: string): unknown {
+  try { return JSON.parse(raw) } catch { /* fall through */ }
+  // Next.js may preserve literal \" in .env values without unescaping — retry
+  try { return JSON.parse(raw.replace(/\\"/g, '"')) } catch { return undefined }
+}
+
 function parseJsonRecord(value: string | undefined, label: string): Record<string, string> | null {
   if (!value) return null
-  try {
-    const parsed = JSON.parse(value)
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      console.warn(`[pan-details] ${label} must be a JSON object`)
-      return null
-    }
-    const record: Record<string, string> = {}
-    for (const [key, entry] of Object.entries(parsed as Record<string, unknown>)) {
-      if (entry === null || entry === undefined) continue
-      if (typeof entry === "string") record[key] = entry
-      else if (typeof entry === "number" || typeof entry === "boolean") record[key] = String(entry)
-    }
-    return Object.keys(record).length ? record : null
-  } catch (error) {
-    console.warn(`[pan-details] Invalid ${label}: ${(error as Error)?.message || "unable to parse JSON"}`)
+  const parsed = tryJsonParse(value)
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    if (parsed !== undefined) console.warn(`[pan-details] ${label} must be a JSON object`)
+    else console.warn(`[pan-details] Invalid ${label}: unable to parse JSON`)
     return null
   }
+  const record: Record<string, string> = {}
+  for (const [key, entry] of Object.entries(parsed as Record<string, unknown>)) {
+    if (entry === null || entry === undefined) continue
+    if (typeof entry === "string") record[key] = entry
+    else if (typeof entry === "number" || typeof entry === "boolean") record[key] = String(entry)
+  }
+  return Object.keys(record).length ? record : null
 }
 
 function normalizeHttpMethod(value: string | undefined): "GET" | "POST" {
