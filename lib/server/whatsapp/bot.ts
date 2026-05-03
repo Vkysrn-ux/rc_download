@@ -464,7 +464,8 @@ Type and reply any command to get started:
 🌐 Website: vehiclercdownload.com
 
 _Registered users: charges deducted from wallet_
-_New users: pay per request via payment link_`
+_New users: pay per request via payment link and scan QR_
+_Register and get free ₹30 in your wallet_`
 
 export async function handleWhatsappMessage(jid: string, messageText: string) {
   const phone = jid.replace(/@.*$/, "")
