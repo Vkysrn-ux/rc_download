@@ -3,10 +3,21 @@ services:
     build: .
     container_name: rc_download
     restart: unless-stopped
-    ports:
-      - "3002:3000"
     env_file:
       - .env.local
     environment:
       - PORT=3000
       - NODE_ENV=production
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rc_download.rule=Host(`vehiclercdownload.com`) || Host(`www.vehiclercdownload.com`)"
+      - "traefik.http.routers.rc_download.entrypoints=https"
+      - "traefik.http.routers.rc_download.tls=true"
+      - "traefik.http.routers.rc_download.tls.certresolver=letsencrypt"
+      - "traefik.http.services.rc_download.loadbalancer.server.port=3000"
+
+networks:
+  coolify:
+    external: true
