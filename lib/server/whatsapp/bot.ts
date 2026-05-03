@@ -456,11 +456,13 @@ const HELP_TEXT = `👋 *Welcome to RC Download Bot*
 
 Send a command to get started:
 
-🚗 *RC TN38CE0078* — Get RC certificate image
-📋 *PAN AVIPX1234X* — Get PAN details
-📱 *Mobile TN38CE0078* — Get linked mobile number
-👤 *Owner TN38CE0078* — Get ownership history
+🚗 *RC <vehicle number>* — Get RC certificate image
+📋 *PAN <pan number>* — Get PAN details
+📱 *Mobile <vehicle number>* — Get linked mobile number
+👤 *Owner <vehicle number>* — Get ownership history
 💰 *Balance* — Check your wallet balance
+
+🌐 Website: vehiclercdownload.com
 
 _Registered users: charges deducted from wallet_
 _New users: pay per request via payment link_`
