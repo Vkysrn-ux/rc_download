@@ -12,11 +12,23 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
+      # HTTPS router
       - "traefik.http.routers.rc_download.rule=Host(`vehiclercdownload.com`) || Host(`www.vehiclercdownload.com`)"
       - "traefik.http.routers.rc_download.entrypoints=https"
       - "traefik.http.routers.rc_download.tls=true"
       - "traefik.http.routers.rc_download.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.rc_download.middlewares=gzip"
+      - "traefik.http.routers.rc_download.priority=100"
       - "traefik.http.services.rc_download.loadbalancer.server.port=3000"
+      # HTTP router — redirect to HTTPS
+      - "traefik.http.routers.rc_download_http.rule=Host(`vehiclercdownload.com`) || Host(`www.vehiclercdownload.com`)"
+      - "traefik.http.routers.rc_download_http.entrypoints=http"
+      - "traefik.http.routers.rc_download_http.middlewares=redirect-to-https"
+      - "traefik.http.routers.rc_download_http.service=rc_download"
+      - "traefik.http.routers.rc_download_http.priority=100"
+      # Shared middlewares
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.gzip.compress=true"
 
 networks:
   coolify:
