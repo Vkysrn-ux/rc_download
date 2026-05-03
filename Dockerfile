@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-# Chromium system dependencies (Debian Bookworm / node:20-slim)
+# Chromium system dependencies for Puppeteer (Debian Bookworm)
 RUN apt-get update && apt-get install -y \
   ca-certificates \
   fonts-liberation \
@@ -22,20 +22,22 @@ RUN apt-get update && apt-get install -y \
   --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
+# Enable pnpm via corepack
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
 
-COPY package*.json ./
+# Install dependencies (cached layer)
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
-# npm ci also downloads Puppeteer's bundled Chromium
-RUN npm ci
-
+# Copy source and build
 COPY . .
-
-RUN npm run build
+RUN pnpm build
 
 ENV NODE_ENV=production
 ENV PORT=3000
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]
