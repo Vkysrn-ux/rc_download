@@ -23,18 +23,9 @@ type User = { id: string; name: string; wallet_balance: number }
 
 // ─── DB helpers ─────────────────────────────────────────────────────────────
 
-const WHATSAPP_SIGNUP_CREDIT_INR = 30
-
 let tableEnsured = false
 async function ensureTable() {
   if (tableEnsured) return
-  await dbQuery(`
-    CREATE TABLE IF NOT EXISTS whatsapp_registration_sessions (
-      phone VARCHAR(20) PRIMARY KEY,
-      state ENUM('awaiting_name') NOT NULL DEFAULT 'awaiting_name',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `)
   await dbQuery(`
     CREATE TABLE IF NOT EXISTS whatsapp_pending_requests (
       id VARCHAR(36) PRIMARY KEY,
@@ -65,52 +56,11 @@ async function findUserByPhone(rawPhone: string): Promise<User | null> {
   return { ...rows[0], wallet_balance: Number(rows[0].wallet_balance) }
 }
 
-async function getRegSession(phone: string): Promise<string | null> {
-  const rows = await dbQuery<{ state: string }>(
-    "SELECT state FROM whatsapp_registration_sessions WHERE phone = ? LIMIT 1",
-    [phone],
-  )
-  return rows[0]?.state ?? null
-}
-
-async function setRegSession(phone: string, state: string) {
-  await dbQuery(
-    "INSERT INTO whatsapp_registration_sessions (phone, state) VALUES (?, ?) ON DUPLICATE KEY UPDATE state = ?, created_at = NOW()",
-    [phone, state, state],
-  )
-}
-
-async function clearRegSession(phone: string) {
-  await dbQuery("DELETE FROM whatsapp_registration_sessions WHERE phone = ?", [phone])
-}
-
-async function registerWhatsappUser(phone: string, name: string): Promise<number> {
-  const id = crypto.randomUUID()
-  const digits = phone.replace(/\D/g, "")
-  const d10 = digits.slice(-10)
-  const normalizedPhone = `91${d10}`
-  const placeholderEmail = `${normalizedPhone}@wa.local`
-  const passwordHash = crypto.randomBytes(32).toString("hex")
-
-  await dbQuery(
-    `INSERT INTO users (id, email, phone, name, password_hash, role, wallet_balance, is_active)
-     VALUES (?, ?, ?, ?, ?, 'user', ?, 1)`,
-    [id, placeholderEmail, normalizedPhone, name.trim(), passwordHash, WHATSAPP_SIGNUP_CREDIT_INR],
-  )
-  await dbQuery(
-    `INSERT INTO transactions (id, user_id, type, amount, status, payment_method, description)
-     VALUES (?, ?, 'recharge', ?, 'completed', 'wallet', 'WhatsApp signup bonus')`,
-    [crypto.randomUUID(), id, WHATSAPP_SIGNUP_CREDIT_INR],
-  )
-  return WHATSAPP_SIGNUP_CREDIT_INR
-}
-
 // ─── Message parser ──────────────────────────────────────────────────────────
 
 type Command =
   | { type: Service; query: string }
   | { type: "balance" }
-  | { type: "register" }
   | { type: "help" }
 
 function parseMessage(text: string): Command {
@@ -129,7 +79,6 @@ function parseMessage(text: string): Command {
   if (ownM) return { type: "owner", query: ownM[1] }
 
   if (t === "BALANCE" || t === "WALLET") return { type: "balance" }
-  if (t === "REGISTER" || t === "SIGNUP" || t === "JOIN") return { type: "register" }
 
   return { type: "help" }
 }
@@ -508,12 +457,11 @@ async function handleOwner(phone: string, query: string, user: User | null) {
 const HELP_TEXT = `👋 *Welcome to RC Download*
 Type and reply any command to get started:
 
-🚗 *RC TN99X1234* — Get RC certificate image
-📋 *PAN DRBPS0XXX0* — Get PAN details
-📱 *Mobile TN99X1234* — Get linked mobile number
-👤 *Owner TN99X1234* — Get ownership history
-💰 *Balance* — Check your wallet balance
-📝 *Register* — Create account & get free ₹30
+*RC TN99X1234* — (Get RC certificate image 🚗)
+*PAN DRBPS0XXX0* — (Get PAN details 📋)
+*Mobile TN99X1234* — (Get linked mobile number 📱)
+*Owner TN99X1234* — (Get ownership history 👤)
+*Balance* — (Check your wallet balance 💰)
 
 🌐 Website: vehiclercdownload.com
 
@@ -523,7 +471,6 @@ _Register and get free ₹30 in your wallet_`
 
 export async function handleWhatsappMessage(jid: string, messageText: string) {
   const phone = jid.replace(/@.*$/, "")
-  await ensureTable()
 
   let user: User | null = null
   try {
@@ -532,52 +479,7 @@ export async function handleWhatsappMessage(jid: string, messageText: string) {
     console.error("[wa-bot] DB error finding user:", err)
   }
 
-  // ── Registration session: waiting for name ──────────────────────────────
-  const session = await getRegSession(phone).catch(() => null)
-  if (session === "awaiting_name") {
-    const name = messageText.trim()
-    if (!name || name.length < 2) {
-      await sendText(phone, `Please enter your full name (at least 2 characters).`)
-      return
-    }
-    if (name.length > 60) {
-      await sendText(phone, `Name is too long. Please enter a shorter name.`)
-      return
-    }
-    await clearRegSession(phone)
-    if (user) {
-      await sendText(phone, `✅ You already have an account, *${user.name}*!\n\n💰 Wallet balance: ₹${user.wallet_balance}`)
-      return
-    }
-    try {
-      await registerWhatsappUser(phone, name)
-      await sendText(
-        phone,
-        `✅ *Account created! Welcome, ${name}* 🎉\n\nYour wallet has been credited with *₹${WHATSAPP_SIGNUP_CREDIT_INR} free*!\n\nTry it now:\n🚗 *RC TN99X1234*\n\nType *Help* to see all commands.`,
-      )
-    } catch (err: any) {
-      console.error("[wa-bot] Registration failed:", err?.message)
-      if (String(err?.message).includes("Duplicate")) {
-        await sendText(phone, `⚠️ This number is already registered. Type *Balance* to check your wallet.`)
-      } else {
-        await sendText(phone, `❌ Registration failed. Please try again or visit vehiclercdownload.com`)
-      }
-    }
-    return
-  }
-
   const cmd = parseMessage(messageText)
-
-  // ── Register command ────────────────────────────────────────────────────
-  if (cmd.type === "register") {
-    if (user) {
-      await sendText(phone, `✅ You already have an account, *${user.name}*!\n\n💰 Wallet balance: ₹${user.wallet_balance}`)
-      return
-    }
-    await setRegSession(phone, "awaiting_name")
-    await sendText(phone, `📝 *Create your account*\n\nWhat's your full name?`)
-    return
-  }
 
   if (cmd.type === "help") {
     const greeting = user ? `Hi *${user.name}*! 👋\n\n` : ""
@@ -587,7 +489,8 @@ export async function handleWhatsappMessage(jid: string, messageText: string) {
 
   if (cmd.type === "balance") {
     if (!user) {
-      await sendText(phone, `You don't have an account yet.\n\nType *Register* to create one and get *₹${WHATSAPP_SIGNUP_CREDIT_INR} free*!`)
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vehiclercdownload.com"
+      await sendText(phone, `You don't have a registered account.\n\nSign up at ${appUrl} to get a wallet and discounted rates.`)
     } else {
       await sendText(phone, `💰 *Wallet Balance*\n\nHi ${user.name},\nCurrent balance: *₹${user.wallet_balance}*`)
     }
