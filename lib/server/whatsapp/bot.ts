@@ -452,14 +452,13 @@ async function handleOwner(phone: string, query: string, user: User | null) {
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 
-const HELP_TEXT = `👋 *Welcome to RC Download Bot*
+const HELP_TEXT = `👋 *Welcome to RC Download*
+Type and reply any command to get started:
 
-Send a command to get started:
-
-🚗 *RC <vehicle number>* — Get RC certificate image
-📋 *PAN <pan number>* — Get PAN details
-📱 *Mobile <vehicle number>* — Get linked mobile number
-👤 *Owner <vehicle number>* — Get ownership history
+🚗 *RC TN99X1234* — Get RC certificate image
+📋 *PAN DRBPS0XXX0* — Get PAN details
+📱 *Mobile TN99X1234* — Get linked mobile number
+👤 *Owner TN99X1234* — Get ownership history
 💰 *Balance* — Check your wallet balance
 
 🌐 Website: vehiclercdownload.com
