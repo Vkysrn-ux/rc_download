@@ -1,7 +1,8 @@
 FROM node:20-slim
 
-# Chromium system dependencies for Puppeteer (Debian Bookworm)
+# Chromium + system dependencies for Puppeteer (Debian Bookworm)
 RUN apt-get update && apt-get install -y \
+  chromium \
   ca-certificates \
   fonts-liberation \
   libatk-bridge2.0-0 \
@@ -21,6 +22,10 @@ RUN apt-get update && apt-get install -y \
   xdg-utils \
   --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
+
+# Tell Puppeteer to use system Chromium instead of downloading its own
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Enable pnpm via corepack
 RUN corepack enable && corepack prepare pnpm@latest --activate
