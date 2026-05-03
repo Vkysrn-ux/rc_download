@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { dbQuery } from "@/lib/server/db"
 import { lookupRc, storeRcResult, normalizeRegistration, ExternalApiError } from "@/lib/server/rc-lookup"
 import { chargeWalletForDownload, WalletError } from "@/lib/server/wallet"
-import { createFinvedexOrder, makeFinvedexOrderId } from "@/lib/server/finvedex"
+import { makeFinvedexOrderId } from "@/lib/server/finvedex"
 import {
   REGISTERED_RC_DOWNLOAD_PRICE_INR,
   GUEST_RC_DOWNLOAD_PRICE_INR,
@@ -250,18 +250,14 @@ function formatOwner(reg: string, json: any): string {
 
 // ─── Payment helpers ─────────────────────────────────────────────────────────
 
-async function createWhatsappPayment(phone: string, service: Service, query: string, amount: number): Promise<string> {
+async function createWhatsappPayment(phone: string, service: Service, query: string, _amount: number): Promise<string> {
   await ensureTable()
 
   const pendingId = crypto.randomUUID()
   const orderId = makeFinvedexOrderId(pendingId)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vehiclercdownload.com"
-
-  await dbQuery(
-    `INSERT INTO transactions (id, user_id, type, amount, status, payment_method, description, registration_number, gateway_order_id)
-     VALUES (?, NULL, 'download', ?, 'pending', 'finvedex', ?, ?, ?)`,
-    [pendingId, -amount, `WhatsApp ${service.toUpperCase()} - ${query}`, query.toUpperCase(), orderId],
-  )
+  // Use production URL — Finvedex is whitelisted for vehiclercdownload.com, not local dev.
+  // Payment is created on the website so it goes through the whitelisted server.
+  const appUrl = (process.env.APP_BASE_URL || "https://vehiclercdownload.com").replace(/\/$/, "")
 
   await dbQuery(
     `INSERT INTO whatsapp_pending_requests (id, phone, service, query, order_id, status)
@@ -269,16 +265,7 @@ async function createWhatsappPayment(phone: string, service: Service, query: str
     [pendingId, phone, service, query.toUpperCase(), orderId],
   )
 
-  const { paymentUrl } = await createFinvedexOrder({
-    customerMobile: phone.replace(/^91/, "").slice(-10),
-    amount,
-    orderId,
-    redirectUrl: `${appUrl}/?wa=1`,
-    remark1: phone,
-    remark2: `wa:${service}:${query.toUpperCase()}`,
-  })
-
-  return paymentUrl
+  return `${appUrl}/pay/whatsapp?id=${pendingId}`
 }
 
 // ─── Service handlers ─────────────────────────────────────────────────────────
@@ -286,27 +273,22 @@ async function createWhatsappPayment(phone: string, service: Service, query: str
 async function handleRc(phone: string, query: string, user: User | null) {
   const reg = normalizeRegistration(query)
 
-  if (!user) {
+  if (!user || user.wallet_balance < REGISTERED_RC_DOWNLOAD_PRICE_INR) {
     const price = GUEST_RC_DOWNLOAD_PRICE_INR
     let payUrl: string
     try {
       payUrl = await createWhatsappPayment(phone, "rc", reg, price)
-    } catch {
+    } catch (err: any) {
+      console.error(`[wa-bot] RC payment creation failed for ${reg}:`, err?.message || err)
       await sendText(phone, `❌ Unable to create payment. Please visit vehiclercdownload.com to get your RC details.`)
       return
     }
+    const balanceNote = user
+      ? `\n\n⚠️ Wallet balance: ₹${user.wallet_balance} (need ₹${REGISTERED_RC_DOWNLOAD_PRICE_INR})\nPay directly below:`
+      : ""
     await sendText(
       phone,
-      `🚗 *RC Details for ${reg}*\n\nTo receive the RC certificate image, please complete the payment of ₹${price}:\n\n${payUrl}\n\nYour RC image will be sent automatically after payment.`,
-    )
-    return
-  }
-
-  if (user.wallet_balance < REGISTERED_RC_DOWNLOAD_PRICE_INR) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vehiclercdownload.com"
-    await sendText(
-      phone,
-      `⚠️ Insufficient wallet balance.\n\nCurrent balance: ₹${user.wallet_balance}\nRequired: ₹${REGISTERED_RC_DOWNLOAD_PRICE_INR}\n\nRecharge at: ${appUrl}/wallet`,
+      `🚗 *RC Details for ${reg}*${balanceNote}\n\nPay ₹${price} to receive your RC certificate image:\n\n${payUrl}\n\nYour RC image will be sent automatically after payment.`,
     )
     return
   }
@@ -344,27 +326,22 @@ async function handleRc(phone: string, query: string, user: User | null) {
 async function handlePan(phone: string, query: string, user: User | null) {
   const pan = query.toUpperCase().replace(/\s/g, "")
 
-  if (!user) {
+  if (!user || user.wallet_balance < REGISTERED_PAN_DETAILS_PRICE_INR) {
     const price = GUEST_PAN_DETAILS_PRICE_INR
     let payUrl: string
     try {
       payUrl = await createWhatsappPayment(phone, "pan", pan, price)
-    } catch {
+    } catch (err: any) {
+      console.error(`[wa-bot] PAN payment creation failed for ${pan}:`, err?.message || err)
       await sendText(phone, `❌ Unable to create payment. Please visit vehiclercdownload.com`)
       return
     }
+    const balanceNote = user
+      ? `\n\n⚠️ Wallet balance: ₹${user.wallet_balance} (need ₹${REGISTERED_PAN_DETAILS_PRICE_INR})\nPay directly below:`
+      : ""
     await sendText(
       phone,
-      `📋 *PAN Details for ${pan}*\n\nTo receive PAN details, please complete the payment of ₹${price}:\n\n${payUrl}\n\nDetails will be sent automatically after payment.`,
-    )
-    return
-  }
-
-  if (user.wallet_balance < REGISTERED_PAN_DETAILS_PRICE_INR) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vehiclercdownload.com"
-    await sendText(
-      phone,
-      `⚠️ Insufficient wallet balance.\n\nCurrent balance: ₹${user.wallet_balance}\nRequired: ₹${REGISTERED_PAN_DETAILS_PRICE_INR}\n\nRecharge at: ${appUrl}/wallet`,
+      `📋 *PAN Details for ${pan}*${balanceNote}\n\nPay ₹${price} to receive PAN details:\n\n${payUrl}\n\nDetails will be sent automatically after payment.`,
     )
     return
   }
@@ -396,7 +373,7 @@ async function handlePan(phone: string, query: string, user: User | null) {
 async function handleMobile(phone: string, query: string, user: User | null) {
   const reg = normalizeRegistration(query)
 
-  if (!user) {
+  if (!user || user.wallet_balance < REGISTERED_RC_TO_MOBILE_PRICE_INR) {
     const price = GUEST_RC_TO_MOBILE_PRICE_INR
     let payUrl: string
     try {
@@ -405,16 +382,11 @@ async function handleMobile(phone: string, query: string, user: User | null) {
       await sendText(phone, `❌ Unable to create payment. Please visit vehiclercdownload.com`)
       return
     }
+    const balanceNote = user ? ` (wallet: ₹${user.wallet_balance}, need ₹${REGISTERED_RC_TO_MOBILE_PRICE_INR})` : ""
     await sendText(
       phone,
-      `📱 *RC to Mobile for ${reg}*\n\nTo get linked mobile number, pay ₹${price}:\n\n${payUrl}\n\nResult will be sent after payment.`,
+      `📱 *RC to Mobile for ${reg}*${balanceNote}\n\nPay ₹${price} to get linked mobile number:\n\n${payUrl}\n\nResult will be sent after payment.`,
     )
-    return
-  }
-
-  if (user.wallet_balance < REGISTERED_RC_TO_MOBILE_PRICE_INR) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vehiclercdownload.com"
-    await sendText(phone, `⚠️ Insufficient balance (₹${user.wallet_balance}). Need ₹${REGISTERED_RC_TO_MOBILE_PRICE_INR}. Recharge: ${appUrl}/wallet`)
     return
   }
 
@@ -441,7 +413,7 @@ async function handleMobile(phone: string, query: string, user: User | null) {
 async function handleOwner(phone: string, query: string, user: User | null) {
   const reg = normalizeRegistration(query)
 
-  if (!user) {
+  if (!user || user.wallet_balance < REGISTERED_RC_OWNER_HISTORY_PRICE_INR) {
     const price = GUEST_RC_OWNER_HISTORY_PRICE_INR
     let payUrl: string
     try {
@@ -450,16 +422,11 @@ async function handleOwner(phone: string, query: string, user: User | null) {
       await sendText(phone, `❌ Unable to create payment. Please visit vehiclercdownload.com`)
       return
     }
+    const balanceNote = user ? ` (wallet: ₹${user.wallet_balance}, need ₹${REGISTERED_RC_OWNER_HISTORY_PRICE_INR})` : ""
     await sendText(
       phone,
-      `🚗 *Owner History for ${reg}*\n\nTo get ownership history, pay ₹${price}:\n\n${payUrl}\n\nResult will be sent after payment.`,
+      `🚗 *Owner History for ${reg}*${balanceNote}\n\nPay ₹${price} to get ownership history:\n\n${payUrl}\n\nResult will be sent after payment.`,
     )
-    return
-  }
-
-  if (user.wallet_balance < REGISTERED_RC_OWNER_HISTORY_PRICE_INR) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vehiclercdownload.com"
-    await sendText(phone, `⚠️ Insufficient balance (₹${user.wallet_balance}). Need ₹${REGISTERED_RC_OWNER_HISTORY_PRICE_INR}. Recharge: ${appUrl}/wallet`)
     return
   }
 
