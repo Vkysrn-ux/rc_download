@@ -303,7 +303,7 @@ async function handleRc(phone: string, query: string, user: User | null) {
     }
 
     await storeRcResult(result.registrationNumber, user.id, result.data, result.provider, result.providerRef).catch(() => {})
-    await chargeWalletForDownload({
+    const { walletBalance } = await chargeWalletForDownload({
       userId: user.id,
       registrationNumber: result.registrationNumber,
       price: REGISTERED_RC_DOWNLOAD_PRICE_INR,
@@ -312,6 +312,7 @@ async function handleRc(phone: string, query: string, user: User | null) {
 
     const imgBuffer = await screenshotRcCard(result.data)
     await sendImage(phone, imgBuffer.toString("base64"), `RC Details: ${result.registrationNumber}`, "image/jpeg")
+    await sendText(phone, `💰 New Wallet Balance: ₹${walletBalance}`)
   } catch (err: any) {
     if (err instanceof WalletError) {
       await sendText(phone, `⚠️ ${err.message}`)
@@ -350,7 +351,7 @@ async function handlePan(phone: string, query: string, user: User | null) {
 
   try {
     const data = await fetchPan(pan)
-    await chargeWalletForDownload({
+    const { walletBalance: panBalance } = await chargeWalletForDownload({
       userId: user.id,
       registrationNumber: pan,
       price: REGISTERED_PAN_DETAILS_PRICE_INR,
@@ -358,6 +359,7 @@ async function handlePan(phone: string, query: string, user: User | null) {
     })
     const imgBuffer = await generatePanImage(pan, data)
     await sendImage(phone, imgBuffer.toString("base64"), `PAN Details: ${pan}`, "image/png")
+    await sendText(phone, `💰 New Wallet Balance: ₹${panBalance}`)
   } catch (err: any) {
     console.error(`[wa-bot] PAN lookup failed for ${pan}:`, err?.message || err)
     if (err instanceof WalletError) {
@@ -394,13 +396,13 @@ async function handleMobile(phone: string, query: string, user: User | null) {
 
   try {
     const data = await fetchMobile(reg)
-    await chargeWalletForDownload({
+    const { walletBalance: mobileBalance } = await chargeWalletForDownload({
       userId: user.id,
       registrationNumber: reg,
       price: REGISTERED_RC_TO_MOBILE_PRICE_INR,
       description: `WhatsApp RC-to-Mobile - ${reg}`,
     })
-    await sendText(phone, formatMobile(reg, data))
+    await sendText(phone, formatMobile(reg, data) + `\n\n💰 New Wallet Balance: ₹${mobileBalance}`)
   } catch (err: any) {
     if (err instanceof WalletError) {
       await sendText(phone, `⚠️ ${err.message}`)
@@ -434,13 +436,13 @@ async function handleOwner(phone: string, query: string, user: User | null) {
 
   try {
     const data = await fetchOwner(reg)
-    await chargeWalletForDownload({
+    const { walletBalance: ownerBalance } = await chargeWalletForDownload({
       userId: user.id,
       registrationNumber: reg,
       price: REGISTERED_RC_OWNER_HISTORY_PRICE_INR,
       description: `WhatsApp Owner History - ${reg}`,
     })
-    await sendText(phone, formatOwner(reg, data))
+    await sendText(phone, formatOwner(reg, data) + `\n\n💰 New Wallet Balance: ₹${ownerBalance}`)
   } catch (err: any) {
     if (err instanceof WalletError) {
       await sendText(phone, `⚠️ ${err.message}`)
