@@ -14,7 +14,7 @@ function normalizePhone(phone: string): string {
 
 async function post(path: string, body: unknown) {
   const { url, key, instance } = cfg()
-  const res = await fetch(`${url}/api/v1/message/${path}/${instance}`, {
+  const res = await fetch(`${url}/message/${path}/${instance}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: key },
     body: JSON.stringify(body),
